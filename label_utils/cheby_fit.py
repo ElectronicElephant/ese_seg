@@ -15,17 +15,19 @@ def che_fit(txt_path,deg,fit_save_dir):
 
         results = []
         for objects_info in img_info:
-            # 1,360
-            objects_new = np.zeros(9+deg+1)
-            objects_new[0:9]= objects_info[0:9]
-            bboxw = objects_info[5]
-            bboxh = objects_info[6]
-            bbox_len = np.sqrt(bboxw*bboxw+bboxh*bboxh)
-            r = objects_info[9:] / float(bbox_len)
-            theta = np.linspace(-1,1,360)
-            coefficient,Res = chebyshev.chebfit(theta,r,deg,full=True)
-            objects_new[9:] = np.array(coefficient)
-            results.append(objects_new)
+            # # 1,360
+            # objects_new = np.zeros(9+deg+1)
+            # objects_new[0:9]= objects_info[0:9]
+            # bboxw = objects_info[5]
+            # bboxh = objects_info[6]
+            # bbox_len = np.sqrt(bboxw*bboxw+bboxh*bboxh)
+            # r = objects_info[9:] / float(bbox_len)
+            # theta = np.linspace(-1,1,360)
+            # coefficient,Res = chebyshev.chebfit(theta,r,deg,full=True)
+            # objects_new[9:] = np.array(coefficient)
+            # results.append(objects_new)
+            results.append(objects_info)
+            # Do nothing but write
         results = np.array(results)
         np.savetxt(new_path, results)
 

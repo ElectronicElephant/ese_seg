@@ -10,20 +10,35 @@ from center import *
 from tqdm import tqdm
 import math
 
+# for loading mat
+from scipy.io import savemat
+from scipy.sparse import csr_matrix
+
 root = "../sbd"
-instance_dir = os.path.join(root, "SegmentationObject/")
-sem_dir = os.path.join(root, "SegmentationClass/")
+instance_dir = os.path.join(root, "inst")
+sem_dir = os.path.join(root, "cls")
 label_dir = "../label_polygon_"
+
+
+def getBoundingBox(mask):
+    '''
+    By WenQiang
+    :param mask:
+    :return:
+    '''
+    coords = np.transpose(np.nonzero(mask))
+    x, y, w, h = cv.boundingRect(coords)
+    return x, y, w, h
 
 def compare_path(path_1, path_2, distMatrix):
     sum1 = 0
     for i in range(1, len(path_1)):
         sum1 += distMatrix[path_1[i-1]][path_1[i]]
-    
+
     sum2 = 0
     for i in range(1, len(path_2)):
         sum2 += distMatrix[path_2[i-1]][path_2[i]]
-    
+
     return sum1>sum2
 
 def trans_polarone_to_another(ori_deg,assisPolar,center_coord,im_shape):
@@ -58,14 +73,14 @@ def fillInstance(instance, instance_id):
         edgePoints = contours[0]
         for i in range(1, len(contours)):
             edgePoints = np.concatenate((edgePoints, contours[i]),axis=0)
-        
+
         dictEdgePoint = {} # for later grouping
         for i in range(len(contours)):
             for j in range(contours[i].shape[0]):
                 e_x = str(contours[i][j][0][0])
                 e_y = str(contours[i][j][0][1])
                 dictEdgePoint[e_x+"_"+e_y]=[i,j]
-        
+
         # bbox of whole instance
         x, y, w, h = cv.boundingRect(edgePoints)
 
@@ -92,7 +107,7 @@ def fillInstance(instance, instance_id):
                 distanceMapLeft[index_y] = index_x
             if index_x > distanceMapRight[index_y]:
                 distanceMapRight[index_y] = index_x
-        
+
         # grouping outline to original contours, it can make undirected points partially directed
         selected_points = []
         selected_info = {}
@@ -148,7 +163,7 @@ def fillInstance(instance, instance_id):
             point_number_list.append(len(groups[key]))
             start_list.append(groups[key][0])
             end_list.append(groups[key][-1])
-        
+
         # get center point here
         point_count = 0
         center_x = 0
@@ -170,12 +185,12 @@ def fillInstance(instance, instance_id):
             if deg < 0:
                 deg += 360
             degStartList.append(deg)
-        
+
         # first solely consider the degree, construct a base solution
         best_path = np.argsort(degStartList)
         best_path = np.append(best_path, best_path[0])
 
-        
+
         # then consider distance, model it as asymmetric travelling salesman problem
         # note: add this step the solution is not necessarily better
         # note: if an object is relatively simple, i.e. <=3 area, do not need this
@@ -214,11 +229,11 @@ def fillInstance(instance, instance_id):
     return instance
 
 # input instance with only one contour
-def getOrientedPoints(instance):    
+def getOrientedPoints(instance):
     # first get center point
     instance = instance.astype(np.uint8)
     center_x, center_y= centerdot(instance) # your implementation, return a tuple or a list center = (center_x, center_y)
-    
+
     edges = get_gradient(instance) # your implementation of get gradient, it is a bool map
     index_h, index_w = np.where(edges == 1)
     edgepoints_array = np.array([(index_w[i], index_h[i]) for i in range(len(index_h))])  # x, y
@@ -263,7 +278,7 @@ def getOrientedPoints(instance):
         else:
             for deg in range(math.ceil(deg1),math.ceil(deg2)):
                 edgeDict[str(int(deg))].append(distance_r)
-        
+
     # sorted method
     # edgeDict = {k:sorted(edgeDict[k]) for k in edgeDict.keys()}
     start_deg = 0
@@ -287,8 +302,8 @@ def getOrientedPoints(instance):
                     trans_r = trans_polarone_to_another(index_deg,assisPolar,center_coord,instance.shape)
                     edgeDict[str(index_deg)].append(trans_r)
         edgeDict = {k:np.max(np.array(edgeDict[k])) for k in edgeDict.keys()}
-    points = [edgeDict[str(deg_num)] for deg_num in range(360)] # start 0 deg 
-    
+    points = [edgeDict[str(deg_num)] for deg_num in range(360)] # start 0 deg
+
     return points,center_x,center_y
 
 def getPointsOfNumber(edgePoints, N):
@@ -328,7 +343,7 @@ def getPointsOfNumber(edgePoints, N):
                 middle_points = (approx[index] + approx[index+1])/2
             else:
                 middle_points = (approx[index] + approx[1])/2
-            
+
             approx = approx.tolist()
             approx.insert(int(index+1),middle_points)
             approx = np.array(approx)
@@ -347,18 +362,22 @@ def getMaxAreaContour(contours):
     return edgePoints
 
 def runOneImage(img_path,save_dir,polygon_num):
-    instance_mask = Image.open(img_path) # PIL
+    # instance_mask = Image.open(img_path)  # PIL
+    instance_mat = scipy.io.loadmat(img_path)
+    instance_mask = inst_mat['GTinst'][0, 0]['Segmentation']
     instance_mask = np.array(instance_mask)
     instance_ids = np.unique(instance_mask)
-    semantic_mask = np.array(Image.open(img_path.replace("Object", "Class")))
+    # semantic_mask = np.array(Image.open(img_path.replace("inst", "cls")))
+    sem_mat = scipy.io.loadmat(img_path.replace("inst", "cls"))
+    semantic_mask = sem_mat['GTcls'][0, 0]['Segmentation']
     img_name = img_path.split('/')[-1]
- 
+
     label_dir_pkl = os.path.join(save_dir,'label_pkl')
     label_dir_txt = os.path.join(save_dir,'label_txt')
     if not os.path.exists(label_dir_pkl):
         os.mkdir(label_dir_pkl)
     if not os.path.exists(label_dir_txt):
-        os.mkdir(label_dir_txt)   
+        os.mkdir(label_dir_txt)
     imw = instance_mask.shape[1]
     imh = instance_mask.shape[0]
     img_info_dict = []
@@ -373,51 +392,37 @@ def runOneImage(img_path,save_dir,polygon_num):
         tempMask = (instance_mask == temp)
         cat_id = np.max(np.unique(semantic_mask * tempMask)) # semantic category of this instance
         instance = instance_mask * tempMask
-        instance_temp = instance.copy() # findContours will change instance, so copy first
-        instance = fillInstance(instance_temp, instance_id)
-        _, contours, _= cv.findContours(instance, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)
-        edgePoints = getMaxAreaContour(contours)
 
-        instance_second = np.zeros(instance_mask.shape)
-        cv.fillPoly(instance_second, [edgePoints], (int(instance_id),0,0))
-        
-        x,y,w,h = cv.boundingRect(instance_second.astype(np.uint8))
-        x += w/2
-        y += h/2 
-        point_number = polygon_num
-        try:
-            points = getPointsOfNumber(edgePoints[:,0,:], point_number) #x,y
-        except:
-            print('invaild label')
-            continue
+        # BoundingBox, don't know why Haiyang wrote x += w/2 and y += h/2
+        x, y, w, h = getBoundingBox(instance)
+
+        # Crop the mask and get the coeffs
+        instance_mask = instance[x:x + w, y:y + h].astype(np.bool) * 255
+        coeffs = dico.transform(instance_mask)
+        np.clip(coeffs, -2500, 2500, coeffs)
+
         has_object = True
         objects_info['label'] = cat_id
         objects_info['imgwh'] = (imw,imh)
         objects_info['bbox'] = (x,y,w,h)
-        objects_info['polygon_info'] = points
+        objects_info['polygon_info'] = coeffs
         img_info_dict.append(objects_info)
     if has_object == True:
         with open(os.path.join(label_dir_pkl,img_name[:-4]+'.pkl'),'wb') as fpkl:
             pickle.dump(img_info_dict,fpkl)
-        info_txt = np.zeros((len(img_info_dict),2*point_number+7))
+        info_txt = np.zeros((len(img_info_dict),n_components+7))
         for i in range(len(img_info_dict)):
             info_txt[i][0] = img_info_dict[i]['label']
             info_txt[i][1:3] = img_info_dict[i]['imgwh']
             info_txt[i][3:7] = img_info_dict[i]['bbox']
-            a = img_info_dict[i]['polygon_info']
-            a = a.reshape(2*point_number)
-            a = a.reshape(point_number,2).T
-            x_coord = a[0]
-            y_coord = a[1]
-            info_txt[i][7:7+point_number] = x_coord
-            info_txt[i][7+point_number:7+2*point_number] = y_coord
+            info_txt[i][7:] = img_info_dict[i]['coeffs']
         np.savetxt(os.path.join(label_dir_txt,img_name[:-4]+'.txt'),info_txt)
-                
+
 
 if __name__ == "__main__":
     inst_list = os.listdir(instance_dir)
     #for poly_num in tqdm(range(1,11)):
-    poly_num = 360
+    poly_num = 50
     label_save_dir = label_dir+str(poly_num)
     if not os.path.exists(label_save_dir):
         os.mkdir(label_save_dir)
@@ -428,6 +433,13 @@ if __name__ == "__main__":
     if not os.path.exists(label_dir_txt):
         os.mkdir(label_dir_txt)
 
+    path = ''
+    n_components = 50
+    n_iter = 1
+    dico = pickle.load(open(f'{path}/all_{n_components}_{n_iter}.sklearnmodel', 'rb'))
+    # dico is treated as the global variable
+
+
     for i in tqdm(range(len(inst_list))):
         runOneImage(os.path.join(instance_dir ,inst_list[i]), label_save_dir, poly_num)
-        
+

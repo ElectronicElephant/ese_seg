@@ -79,7 +79,7 @@ def extractTXT(txt_path):
     txt_name = txt_path.split('/')[-1][:-4]
     with open(txt_path,'r') as f:
         img_info = np.loadtxt(f)
-        img_info = img_info.reshape((-1,9+2*deg+2))
+        img_info = img_info.reshape((-1,9+50))
     img_name = txt_name
     cat_list = []
     for i in range(len(img_info)):

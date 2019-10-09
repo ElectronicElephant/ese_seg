@@ -95,7 +95,7 @@ def extractTXT(txt_path):
     txt_name = txt_path.split('/')[-1][:-4]
     with open(txt_path,'r') as f:
         img_info = np.loadtxt(f)
-        img_info = img_info.reshape((-1,7+360*2))    # 360 is the edge points number
+        img_info = img_info.reshape((-1,7+50))    # 360 is the edge points number
         '''
         img_info:
         Size (N, 7+360*2)
@@ -113,8 +113,8 @@ def extractTXT(txt_path):
     return img_name, cat_list, img_info, width, height, channel
 
 if __name__ == '__main__':
-    txt_dir = '../label_polygon_360/label_txt/'
-    save_dir = '../sbd/label_polygon_360_xml/'
+    txt_dir = '../label_polygon_50/label_txt/'
+    save_dir = '../sbd/label_polygon_50_xml/'
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
         
