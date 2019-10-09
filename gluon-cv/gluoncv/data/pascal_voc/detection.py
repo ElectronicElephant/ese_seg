@@ -56,7 +56,7 @@ class VOCDetection(VisionDataset):
         self._transform = transform
         self._splits = splits
         self._items = self._load_items(splits)
-        self._anno_path = os.path.join('{}', './cheby_fit/n8_xml', '{}.xml')
+        self._anno_path = os.path.join('{}', './sbd/n50_xml', '{}.xml')
         self._image_path = os.path.join('{}', 'JPEGImages', '{}.jpg')
         self.index_map = index_map or dict(zip(self.classes, range(self.num_class)))
         self._label_cache = self._preload_labels() if preload_label else None
@@ -205,7 +205,7 @@ class coco_pretrain_Detection(VisionDataset):
         self._transform = transform
         self._splits = splits
         self._items = self._load_items(splits)
-        self._anno_path = os.path.join('{}', './cheby_fit/n8_xml', '{}.xml')
+        self._anno_path = os.path.join('{}', './sbd/n50_xml', '{}.xml')
         self._image_path = os.path.join('{}', 'JPEGImages', '{}.jpg')
         self.index_map = index_map or dict(zip(self.classes, range(self.num_class)))
         self._label_cache = self._preload_labels() if preload_label else None
