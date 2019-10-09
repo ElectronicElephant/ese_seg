@@ -4,14 +4,7 @@
     <bookmark url="file://$PROJECT_DIR$/label_utils/label_centerdeg.py" line="329" mnemonic="1" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0be99f1b-73fa-4613-8884-537f0e46cc25" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/label_utils/cheby_fit.py" beforeDir="false" afterPath="$PROJECT_DIR$/label_utils/cheby_fit.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/label_utils/label_centerdeg.py" beforeDir="false" afterPath="$PROJECT_DIR$/label_utils/label_centerdeg.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/label_utils/label_polygon.py" beforeDir="false" afterPath="$PROJECT_DIR$/label_utils/label_polygon.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/label_utils/sbd_dataset.bash" beforeDir="false" afterPath="$PROJECT_DIR$/label_utils/sbd_dataset.bash" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/label_utils/train_coef_xml.py" beforeDir="false" afterPath="$PROJECT_DIR$/label_utils/train_coef_xml.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/label_utils/val_polygon_xml.py" beforeDir="false" afterPath="$PROJECT_DIR$/label_utils/val_polygon_xml.py" afterDir="false" />
-    </list>
+    <list default="true" id="0be99f1b-73fa-4613-8884-537f0e46cc25" name="Default Changelist" comment="" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,17 +28,17 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/label_utils/sbd_dataset.bash">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="76">
-              <caret line="4" column="17" lean-forward="true" selection-start-line="4" selection-start-column="17" selection-end-line="4" selection-end-column="18" />
+            <state relative-caret-position="19">
+              <caret line="1" column="17" selection-start-line="1" selection-start-column="17" selection-end-line="1" selection-end-column="17" />
             </state>
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/label_utils/label_centerdeg.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="474">
-              <caret line="385" column="12" lean-forward="true" selection-start-line="385" selection-start-column="12" selection-end-line="385" selection-end-column="12" />
+            <state relative-caret-position="437">
+              <caret line="331" column="19" selection-start-line="331" selection-start-column="19" selection-end-line="331" selection-end-column="28" />
               <folding>
                 <element signature="e#0#16#0" expanded="true" />
                 <element signature="e#705#931#0" />
@@ -70,10 +63,10 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/label_utils/train_coef_xml.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="246">
+            <state relative-caret-position="588">
               <caret line="81" column="40" lean-forward="true" selection-start-line="81" selection-start-column="40" selection-end-line="81" selection-end-column="40" />
               <folding>
                 <element signature="e#0#16#0" expanded="true" />
@@ -138,7 +131,7 @@
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds" extendedState="7">
+  <component name="ProjectFrameBounds" extendedState="6">
     <option name="x" value="140" />
     <option name="width" value="1870" />
     <option name="height" value="2175" />
@@ -168,6 +161,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="WebServerToolWindowFactoryState" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="nodejs_interpreter_path.stuck_in_default_project" value="undefined stuck path" />
@@ -196,15 +190,15 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1570590050067</updated>
-      <workItem from="1570590051358" duration="11174000" />
+      <workItem from="1570590051358" duration="12153000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="11174000" />
+    <option name="totallyTimeSpent" value="12153000" />
   </component>
   <component name="ToolWindowManager">
-    <frame x="56" y="-6" width="1487" height="877" extended-state="7" />
+    <frame x="56" y="-6" width="1487" height="877" extended-state="6" />
     <editor active="true" />
     <layout>
       <window_info id="Favorites" order="0" side_tool="true" />
@@ -279,13 +273,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/label_utils/sbd_dataset.bash">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="76">
-          <caret line="4" column="17" lean-forward="true" selection-start-line="4" selection-start-column="17" selection-end-line="4" selection-end-column="18" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/label_utils/cheby_fit.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="608">
@@ -293,6 +280,13 @@
           <folding>
             <element signature="e#0#18#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/label_utils/val_polygon_xml.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="241">
+          <caret line="107" column="17" lean-forward="true" selection-start-line="103" selection-start-column="8" selection-end-line="107" selection-end-column="17" />
         </state>
       </provider>
     </entry>
@@ -306,27 +300,17 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/label_utils/train_coef_xml.py">
+    <entry file="file://$PROJECT_DIR$/label_utils/sbd_dataset.bash">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="246">
-          <caret line="81" column="40" lean-forward="true" selection-start-line="81" selection-start-column="40" selection-end-line="81" selection-end-column="40" />
-          <folding>
-            <element signature="e#0#16#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/label_utils/val_polygon_xml.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="241">
-          <caret line="107" column="17" lean-forward="true" selection-start-line="103" selection-start-column="8" selection-end-line="107" selection-end-column="17" />
+        <state relative-caret-position="19">
+          <caret line="1" column="17" selection-start-line="1" selection-start-column="17" selection-end-line="1" selection-end-column="17" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/label_utils/label_centerdeg.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="474">
-          <caret line="385" column="12" lean-forward="true" selection-start-line="385" selection-start-column="12" selection-end-line="385" selection-end-column="12" />
+        <state relative-caret-position="437">
+          <caret line="331" column="19" selection-start-line="331" selection-start-column="19" selection-end-line="331" selection-end-column="28" />
           <folding>
             <element signature="e#0#16#0" expanded="true" />
             <element signature="e#705#931#0" />
@@ -334,6 +318,16 @@
             <element signature="e#1615#8403#0" />
             <element signature="e#8485#11863#0" />
             <element signature="e#11902#12177#0" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/label_utils/train_coef_xml.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="588">
+          <caret line="81" column="40" lean-forward="true" selection-start-line="81" selection-start-column="40" selection-end-line="81" selection-end-column="40" />
+          <folding>
+            <element signature="e#0#16#0" expanded="true" />
           </folding>
         </state>
       </provider>

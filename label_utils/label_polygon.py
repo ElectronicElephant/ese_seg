@@ -11,8 +11,7 @@ from tqdm import tqdm
 import math
 
 # for loading mat
-from scipy.io import savemat
-from scipy.sparse import csr_matrix
+from scipy.io import loadmat
 
 root = "../sbd"
 instance_dir = os.path.join(root, "inst")
@@ -363,12 +362,12 @@ def getMaxAreaContour(contours):
 
 def runOneImage(img_path,save_dir,polygon_num):
     # instance_mask = Image.open(img_path)  # PIL
-    instance_mat = scipy.io.loadmat(img_path)
-    instance_mask = inst_mat['GTinst'][0, 0]['Segmentation']
+    instance_mat = loadmat(img_path)
+    instance_mask = instance_mat['GTinst'][0, 0]['Segmentation']
     instance_mask = np.array(instance_mask)
     instance_ids = np.unique(instance_mask)
     # semantic_mask = np.array(Image.open(img_path.replace("inst", "cls")))
-    sem_mat = scipy.io.loadmat(img_path.replace("inst", "cls"))
+    sem_mat = loadmat(img_path.replace("inst", "cls"))
     semantic_mask = sem_mat['GTcls'][0, 0]['Segmentation']
     img_name = img_path.split('/')[-1]
 
@@ -397,9 +396,13 @@ def runOneImage(img_path,save_dir,polygon_num):
         x, y, w, h = getBoundingBox(instance)
 
         # Crop the mask and get the coeffs
-        instance_mask = instance[x:x + w, y:y + h].astype(np.bool) * 255
-        coeffs = dico.transform(instance_mask)
+        instance_mask_ = instance[x:x + w, y:y + h].astype(np.bool) * 255
+        instance_mask_ = Image.fromarray(instance_mask_.astype(np.uint8)).resize((64, 64), Image.NEAREST)
+        instance_mask_ = np.reshape(instance_mask_, (-1, 64*64))     
+        coeffs = dico.transform(instance_mask_)
         np.clip(coeffs, -2500, 2500, coeffs)
+        # print(f'{coeffs.shape}, {coeffs[0]}')
+        # assert(np.max(coeffs) <= 2500 and np.min(coeffs) >= -2500)
 
         has_object = True
         objects_info['label'] = cat_id
@@ -433,7 +436,7 @@ if __name__ == "__main__":
     if not os.path.exists(label_dir_txt):
         os.mkdir(label_dir_txt)
 
-    path = ''
+    path = '/disk1/home/tutian/ese_seg/label_utils'
     n_components = 50
     n_iter = 1
     dico = pickle.load(open(f'{path}/all_{n_components}_{n_iter}.sklearnmodel', 'rb'))
