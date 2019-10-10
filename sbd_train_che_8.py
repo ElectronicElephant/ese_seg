@@ -89,7 +89,7 @@ def parse_args():
     parser.add_argument('--no-mixup-epochs', type=int, default=20,
                         help='Disable mixup training if enabled in the last N epochs.')
     parser.add_argument('--label-smooth', action='store_true', help='Use label smoothing.')
-    parser.add_argument('--deg', type=int, default=8, help='cheby degree , actually 17')
+    parser.add_argument('--num_bases', type=int, default=50, help='the number of bases')
     parser.add_argument('--only_bbox', type=bool, default=False,
                         help="Only train boox")
     parser.add_argument('--val_2012', type=bool, default=False,
@@ -100,24 +100,24 @@ def parse_args():
 def get_dataset(dataset, args):
     if dataset.lower() == 'voc':
         train_dataset = gdata.VOCDetection(
-            splits=[('sbdche', 'train'+'_'+str(args.deg)+'_bboxwh')])
+            splits=[('sbdche', 'train'+'_'+'8'+'_bboxwh')])
         if args.val_2012 == True:
-            val_dataset = gdata.VOC_Val_Detection(
+            val_dataset = gdata.VOCDetection(
                 splits=[('sbdche', 'val_2012_bboxwh')])
         else:
-            val_dataset = gdata.VOC_Val_Detection(
-                splits=[('sbdche', 'val'+'_'+str(args.deg)+'_bboxwh')])
+            val_dataset = gdata.VOCDetection(
+                splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
         val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
         val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
     elif dataset.lower() == 'coco_pretrain':
         train_dataset = gdata.coco_pretrain_Detection(
-            splits=[('_coco_20', 'train'+'_'+str(args.deg)+'_bboxwh')])
+            splits=[('_coco_20', 'train'+'_'+'8'+'_bboxwh')])
         if args.val_2012 == True:
-            val_dataset = gdata.VOC_Val_Detection(
+            val_dataset = gdata.VOCDetection(
                 splits=[('sbdche', 'val_2012_bboxwh')])
         else:
-            val_dataset = gdata.VOC_Val_Detection(
-                splits=[('sbdche', 'val'+'_'+str(args.deg)+'_bboxwh')])
+            val_dataset = gdata.VOCDetection(
+                splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
         val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
         val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
     else:
@@ -132,19 +132,20 @@ def get_dataset(dataset, args):
 def get_dataloader(net, train_dataset, val_dataset, data_shape, batch_size, num_workers, args):
     """Get dataloader."""
     width, height = data_shape, data_shape
-    batchify_fn = Tuple(*([Stack() for _ in range(8)] + [Pad(axis=0, pad_val=-1) for _ in range(1)]))  # stack image, all targets generated
+    batchify_fn = Tuple(*([Stack() for _ in range(7)] + [Pad(axis=0, pad_val=-1) for _ in range(1)]))  # stack image, all targets generated
     if args.no_random_shape:
+        # True
         train_loader = gluon.data.DataLoader(
-            train_dataset.transform(YOLO3DefaultTrainTransform(width, height, net, mixup=args.mixup, deg = args.deg)),
+            train_dataset.transform(YOLO3DefaultTrainTransform(width, height, net, mixup=args.mixup, num_bases = args.num_bases)),
             batch_size, True, batchify_fn=batchify_fn, last_batch='rollover', num_workers=num_workers)
     else:
-        transform_fns = [YOLO3DefaultTrainTransform(x * 32, x * 32, net, mixup=args.mixup, deg = args.deg) for x in range(10, 20)]
+        transform_fns = [YOLO3DefaultTrainTransform(x * 32, x * 32, net, mixup=args.mixup, num_bases = args.num_bases) for x in range(10, 20)]
         train_loader = RandomTransformDataLoader(
             transform_fns, train_dataset, batch_size=batch_size, interval=10, last_batch='rollover',
             shuffle=True, batchify_fn=batchify_fn, num_workers=num_workers)
     val_batchify_fn = Tuple(Stack(), Pad(pad_val=-1))
     val_loader = gluon.data.DataLoader(
-        val_dataset.transform(YOLO3DefaultValTransform(width, height)),
+        val_dataset.transform(YOLO3DefaultValTransform(width, height, args.num_bases)),
         batch_size, False, batchify_fn=val_batchify_fn, last_batch='keep', num_workers=num_workers)
     return train_loader, val_loader
 
@@ -171,37 +172,39 @@ def validate(net, val_data, ctx, eval_metric,polygon_metric, args):
         det_bboxes = []
         det_ids = []
         det_scores = []
-        det_coef_centers = []
+        # det_coef_centers = []
         det_coefs = []
-        det_r_all = []
+        # det_r_all = []  # What's this for?
         gt_bboxes = []
-        gt_points_xs = []
-        gt_points_ys = []
+        # gt_points_xs = []
+        # gt_points_ys = []
+        gt_coefs = []  # Add this
         gt_ids = []
         gt_difficults = []
         gt_widths = []
         gt_heights = []
         for x, y in zip(data, label):
             # get prediction results
-            ids, scores, bboxes, absolute_coef_centers, coef = net(x)
+            ids, scores, bboxes, coef = net(x)
             det_ids.append(ids)
             det_scores.append(scores)
-            det_coef_centers.append(absolute_coef_centers)
+            # det_coef_centers.append(absolute_coef_centers)
             det_coefs.append(coef)
             # clip to image size
             det_bboxes.append(bboxes.clip(0, batch[0].shape[2]))
             # split ground truths
-            gt_ids.append(y.slice_axis(axis=-1, begin=4 + 720, end=5 + 720))
             gt_bboxes.append(y.slice_axis(axis=-1, begin=0, end=4))
-            gt_points_xs.append(y.slice_axis(axis=-1, begin=4, end=4 + 360))
-            gt_points_ys.append(y.slice_axis(axis=-1, begin=4 + 360, end=4 + 720))
-            gt_difficults.append(y.slice_axis(axis=-1, begin=5 + 720, end=6 + 720) if y.shape[-1] > 5 else None)
-            gt_widths.append(y.slice_axis(axis=-1, begin=6 + 720, end=7 + 720))
-            gt_heights.append(y.slice_axis(axis=-1, begin=7 + 720, end=8 + 720))
+            # gt_points_xs.append(y.slice_axis(axis=-1, begin=4, end=4 + 360))
+            # gt_points_ys.append(y.slice_axis(axis=-1, begin=4 + 360, end=4 + 720))
+            gt_coefs.append(y.slice_axis(axis=-1, begin=4, end=4 + args.num_bases))
+            gt_ids.append(y.slice_axis(axis=-1, begin=4 + args.num_bases, end=4 + args.num_bases + 1))
+            gt_difficults.append(y.slice_axis(axis=-1, begin=4 + args.num_bases + 1, end=4 + args.num_bases + 2) if y.shape[-1] > 5 else None)
+            gt_widths.append(y.slice_axis(axis=-1, begin=4 + args.num_bases + 2, end=4 + args.num_bases + 3))
+            gt_heights.append(y.slice_axis(axis=-1, begin=4 + args.num_bases + 3, end=4 + args.num_bases + 4))
         # update metric
         eval_metric.update(det_bboxes, det_ids, det_scores, gt_bboxes, gt_ids, gt_difficults)
-        polygon_metric.update(det_bboxes, det_coef_centers, det_coefs, det_ids, det_scores, gt_bboxes, gt_points_xs,
-                              gt_points_ys, gt_ids, gt_widths, gt_heights, gt_difficults)
+        polygon_metric.update(det_bboxes, det_coefs, det_ids, det_scores, gt_bboxes, gt_coefs,
+                                gt_ids, gt_widths, gt_heights, gt_difficults)
     return eval_metric.get(), polygon_metric.get()
 
 def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
@@ -239,7 +242,7 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
     obj_metrics = mx.metric.Loss('ObjLoss')
     center_metrics = mx.metric.Loss('BoxCenterLoss')
     scale_metrics = mx.metric.Loss('BoxScaleLoss')
-    coef_center_metrics = mx.metric.Loss('CoefCenterLoss')
+    # coef_center_metrics = mx.metric.Loss('CoefCenterLoss')
     coef_metrics = mx.metric.Loss('CoefLoss')
     # w_metrics = mx.metric.Loss('wLoss')
     cls_metrics = mx.metric.Loss('ClassLoss')
@@ -276,23 +279,23 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
         for i, batch in enumerate(train_data):
             batch_size = batch[0].shape[0]
             data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0)
-            fixed_targets = [gluon.utils.split_and_load(batch[it], ctx_list=ctx, batch_axis=0) for it in range(1, 8)]
-            gt_boxes = gluon.utils.split_and_load(batch[8], ctx_list=ctx, batch_axis=0)
+            fixed_targets = [gluon.utils.split_and_load(batch[it], ctx_list=ctx, batch_axis=0) for it in range(1, 7)]
+            gt_boxes = gluon.utils.split_and_load(batch[7], ctx_list=ctx, batch_axis=0)
             sum_losses = []
             obj_losses = []
             center_losses = []
             scale_losses = []
-            coef_center_losses = []
+            # coef_center_losses = []
             coef_losses = []
             cls_losses = []
             with autograd.record():
                 for ix, x in enumerate(data):
-                    obj_loss, center_loss, scale_loss, coef_center_loss, coef_loss, cls_loss = net(x, gt_boxes[ix], *[ft[ix] for ft in fixed_targets])
+                    obj_loss, center_loss, scale_loss, coef_loss, cls_loss = net(x, gt_boxes[ix], *[ft[ix] for ft in fixed_targets])
                     if(args.only_bbox):
                         sum_losses.append(obj_loss + center_loss + scale_loss +  cls_loss)
                     else:
-                        sum_losses.append(obj_loss + center_loss + scale_loss + coef_center_loss + coef_loss  + cls_loss)
-                        coef_center_losses.append(coef_center_loss)
+                        sum_losses.append(obj_loss + center_loss + scale_loss + coef_loss  + cls_loss)
+                        # coef_center_losses.append(coef_center_loss)
                         coef_losses.append(coef_loss)
                     obj_losses.append(obj_loss)
                     center_losses.append(center_loss)
@@ -302,7 +305,7 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
             lr_scheduler.update(i, epoch)
             trainer.step(batch_size)
             if(args.only_bbox == False):
-                coef_center_metrics.update(0, coef_center_losses)
+                # coef_center_metrics.update(0, coef_center_losses)
                 coef_metrics.update(0,coef_losses)
             obj_metrics.update(0, obj_losses)
             center_metrics.update(0, center_losses)
@@ -313,31 +316,31 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
                 name2, loss2 = center_metrics.get()
                 name3, loss3 = scale_metrics.get()
                 if(args.only_bbox == False):
-                    name4, loss4 = coef_center_metrics.get()
+                    # name4, loss4 = coef_center_metrics.get()
                     name5, loss5 = coef_metrics.get()
                 name6, loss6 = cls_metrics.get()
                 if(args.only_bbox):
                     logger.info('[Epoch {}][Batch {}], LR: {:.2E}, Speed: {:.3f} samples/sec, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}'.format(
                     epoch, i, trainer.learning_rate, batch_size/(time.time()-btic), name1, loss1, name2, loss2, name3, loss3, name6, loss6))
                 else:
-                    logger.info('[Epoch {}][Batch {}], LR: {:.2E}, Speed: {:.3f} samples/sec, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}'.format(
-                    epoch, i, trainer.learning_rate, batch_size/(time.time()-btic), name1, loss1, name2, loss2, name3, loss3, name4, loss4, name5, loss5, name6, loss6))
+                    logger.info('[Epoch {}][Batch {}], LR: {:.2E}, Speed: {:.3f} samples/sec, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}'.format(
+                    epoch, i, trainer.learning_rate, batch_size/(time.time()-btic), name1, loss1, name2, loss2, name3, loss3, name5, loss5, name6, loss6))
             btic = time.time()
 
         name1, loss1 = obj_metrics.get()
         name2, loss2 = center_metrics.get()
         name3, loss3 = scale_metrics.get()
         if(args.only_bbox==False):
-            name4, loss4 = coef_center_metrics.get()
+            # name4, loss4 = coef_center_metrics.get()
             name5, loss5 = coef_metrics.get()
         name6, loss6 = cls_metrics.get()
         if(args.only_bbox):
             logger.info('[Epoch {}] Training cost: {:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}'.format(
             epoch, (time.time()-tic), name1, loss1, name2, loss2, name3, loss3, name6, loss6))
         else:
-            logger.info('[Epoch {}] Training cost: {:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}'.format(
-            epoch, (time.time()-tic), name1, loss1, name2, loss2, name3, loss3, name4, loss4, name5, loss5, name6, loss6))
-        if not (epoch) % args.val_interval:
+            logger.info('[Epoch {}] Training cost: {:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}'.format(
+            epoch, (time.time()-tic), name1, loss1, name2, loss2, name3, loss3, name5, loss5, name6, loss6))
+        if not (epoch) % args.val_interval and False:
             # consider reduce the frequency of validation to save time
             map_bbox, map_polygon = validate(net, val_data, ctx, eval_metric, polygon_metric,args)
             map_name, mean_ap = map_bbox
@@ -363,6 +366,7 @@ if __name__ == '__main__':
     # network
     net_name = '_'.join(('yolo3', args.network, args.dataset))
     args.save_prefix += net_name
+    print(f"net_name = {net_name}")
     # use sync bn if specified
     if args.syncbn and len(ctx) > 1:
         net = get_model(net_name, pretrained_base=True, norm_layer=gluon.contrib.nn.SyncBatchNorm,
@@ -381,7 +385,9 @@ if __name__ == '__main__':
             async_net.initialize()
 
     # training data
-    train_dataset, val_dataset, eval_metric, polygon_metric= get_dataset(args.dataset, args)
+    train_dataset, val_dataset, eval_metric, polygon_metric = get_dataset(args.dataset, args)
+    # train_data, val_data = get_dataloader(
+    #     async_net, train_dataset, val_dataset, args.data_shape, args.batch_size, args.num_workers, args)
     train_data, val_data = get_dataloader(
         async_net, train_dataset, val_dataset, args.data_shape, args.batch_size, args.num_workers, args)
 

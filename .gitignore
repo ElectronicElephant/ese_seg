@@ -1,0 +1,9 @@
+cheby_fit/n8_xml/2008_000197.xml
+/data/*
+/sbd/*
+/ori_label_center_edage
+/benchmark_RELEASE
+/gluon-cv_bak/*
+
+*.params
+*.log

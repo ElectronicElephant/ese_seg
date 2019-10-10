@@ -13,15 +13,6 @@ from scipy.io import loadmat
 root = "../sbd"
 instance_dir = os.path.join(root, "inst")
 sem_dir = os.path.join(root, "cls")
-label_dir = "../label_center_edage"
-if not os.path.exists(label_dir):
-    os.mkdir(label_dir)
-label_dir_pkl = os.path.join(label_dir, 'label_pkl')
-label_dir_txt = os.path.join(label_dir, 'label_txt')
-if not os.path.exists(label_dir_pkl):
-    os.mkdir(label_dir_pkl)
-if not os.path.exists(label_dir_txt):
-    os.mkdir(label_dir_txt)
 
 labels = ["aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow", "diningtable", "dog",
           "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
@@ -125,8 +116,9 @@ def runOneImage(img_path):
         cat_id = np.max(semantic_mask * tempMask)  # semantic category of this instance
         instance = instance_mask * tempMask
 
-        # BoundingBox, don't know why Haiyang wrote x += w/2 and y += h/2
+        # BoundingBox
         x, y, w, h = getBoundingBox(instance)
+        assert x+w <= img_height and y+h <=img_width
 
         # Crop the mask and get the coeffs
         instance_mask_ = instance[x:x + w, y:y + h].astype(np.bool) * 255
@@ -134,18 +126,22 @@ def runOneImage(img_path):
         instance_mask_ = np.reshape(instance_mask_, (-1, 64 * 64))
         coeffs = dico.transform(instance_mask_)
         np.clip(coeffs, -2500, 2500, coeffs)
+        coeffs = coeffs / 5000  # clip to -0.5 to 0.5
         # print(f'{coeffs.shape}, {coeffs[0]}')
-        assert (np.max(coeffs) <= 2500 and np.min(coeffs) >= -2500)
+        # assert (np.max(coeffs) <= 2500 and np.min(coeffs) >= -2500)
 
+        # Here x, y is the center
+        x += w/2
+        y += h/2
         objects_info['label'] = cat_id
-        objects_info['bbox'] = (x, y, w, h)
+        objects_info['bbox'] = (y, x, h, w)  # TO BE CAREFUL
         objects_info['img_wh'] = (img_width, img_height)
         # objects_info['center'] = (center_x,center_y)
         # No need for center at all
         objects_info['coeffs'] = coeffs
         img_info_dict.append(objects_info)
-    with open(os.path.join(label_dir_pkl, img_name[:-4] + '.pkl'), 'wb') as fpkl:
-        pickle.dump(img_info_dict, fpkl)
+    # with open(os.path.join(label_dir_pkl, img_name[:-4] + '.pkl'), 'wb') as fpkl:
+    #     pickle.dump(img_info_dict, fpkl)
     info_txt = np.zeros((len(img_info_dict), 9 + n_components))
     for i in range(len(img_info_dict)):
         info_txt[i][0] = img_info_dict[i]['label']
@@ -172,7 +168,9 @@ if __name__ == "__main__":
     inst_list = os.listdir(instance_dir)
 
     # XML
-    save_dir = os.path.join(root, 'n' + str(50) + '_xml')
+    save_dir = os.path.join(root, 'bases_' + str(50) + '_xml')
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
 
     path = '/disk1/home/tutian/ese_seg/label_utils'
     n_components = 50
