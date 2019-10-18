@@ -31,6 +31,7 @@ class VOCPolygonMApMetric(mx.metric.EvalMetric):
         self.reset()
         self.iou_thresh = iou_thresh
         self.class_names = class_names
+        self.bases = np.load('/disk1/home/tutian/ese_seg/sbd/all_50_1.npy')
 
     def reset(self):
         """Clear the internal statistics to initial state."""
@@ -67,7 +68,7 @@ class VOCPolygonMApMetric(mx.metric.EvalMetric):
             return (names, values)
 
     def update(self, pred_bboxes, pred_coefs, pred_labels, pred_scores,
-               gt_bboxes, gt_coefs, gt_labels, widths, heights, gt_difficults=None):
+               gt_bboxes, gt_points_xs, gt_points_ys, gt_labels, widths, heights, gt_difficults=None):
         """Update internal buffer with latest prediction and gt pairs.
 
         Parameters
@@ -75,21 +76,25 @@ class VOCPolygonMApMetric(mx.metric.EvalMetric):
         pred_bboxes : mxnet.NDArray or numpy.ndarray
             Prediction bounding boxes with shape `B, N, 4`.
             Where B is the size of mini-batch, N is the number of bboxes.
-        pred_coefs  : mxnet.NDArray or numpy.ndarray
-            Prediction coefs with shape `B , N , coefficient num`.
         pred_labels : mxnet.NDArray or numpy.ndarray
             Prediction bounding boxes labels with shape `B, N`.
+        pred_coefs  : mxnet.NDArray or numpy.ndarray
+            Prediction coefs with shape `B , N , coefficient num`.
         pred_scores : mxnet.NDArray or numpy.ndarray
             Prediction bounding boxes scores with shape `B, N`.
         gt_bboxes : mxnet.NDArray or numpy.ndarray
             Ground-truth bounding boxes with shape `B, M, 4`.
             Where B is the size of mini-batch, M is the number of ground-truths.
-        gt_coefs : mxnet.NDArray or numpy.ndarray
-
         gt_labels : mxnet.NDArray or numpy.ndarray
             Ground-truth bounding boxes labels with shape `B, M`.
+        gt_points_xs : mxnet.NDArray or numpy.ndarray
+            points_xs label with shape `B, N, 360`
+        gt_points_ys : mxnet.NDArray or numpy.ndarray
+            points_ys label with shape `B, N, 360`
         gt_difficults : mxnet.NDArray or numpy.ndarray, optional, default is None
             Ground-truth bounding boxes difficulty labels with shape `B, M`.
+        imgs_shape : mxnet.NDArray or numpy.ndarray
+            imgs_shape with shape `B, 2 `  (img_w,img_h)
         """
         def as_numpy(a):
             """Convert a (list of) mx.NDArray into numpy.ndarray"""
@@ -107,18 +112,20 @@ class VOCPolygonMApMetric(mx.metric.EvalMetric):
         if gt_difficults is None:
             gt_difficults = [None for _ in as_numpy(gt_labels)]
 
-        for pred_bbox, pred_coef, pred_label, pred_score, gt_bbox, gt_coef, gt_label, gt_difficult, width_array, height_array  in zip(
+        for pred_bbox, pred_coef, pred_label, pred_score, gt_bbox, gt_points_xs, gt_points_ys, gt_label, gt_difficult, width_array, height_array  in zip(
                 *[as_numpy(x) for x in [pred_bboxes, pred_coefs, pred_labels, pred_scores,
-                                        gt_bboxes, gt_coefs, gt_labels, gt_difficults, widths, heights]]):
+                                        gt_bboxes, gt_points_xs, gt_points_ys, gt_labels, gt_difficults, widths, heights]]):
             # strip padding -1 for pred and gt
             valid_pred = np.where(pred_label.flat >= 0)[0]
             pred_bbox = pred_bbox[valid_pred, :]
+            # pred_center = pred_center[valid_pred, :]
             pred_coef = pred_coef[valid_pred, :]
             pred_label = pred_label.flat[valid_pred].astype(int)
             pred_score = pred_score.flat[valid_pred]
             valid_gt = np.where(gt_label.flat >= 0)[0]
             gt_bbox = gt_bbox[valid_gt, :]
-            gt_coef = gt_coef[valid_gt, :]
+            gt_points_xs = gt_points_xs[valid_gt, :]
+            gt_points_ys = gt_points_ys[valid_gt, :]
             gt_label = gt_label.flat[valid_gt].astype(int)
             if gt_difficult is None:
                 gt_difficult = np.zeros(gt_bbox.shape[0])
@@ -128,17 +135,20 @@ class VOCPolygonMApMetric(mx.metric.EvalMetric):
             for l in np.unique(np.concatenate((pred_label, gt_label)).astype(int)):
                 pred_mask_l = pred_label == l
                 pred_bbox_l = pred_bbox[pred_mask_l]
+                # pred_center_l = pred_center[pred_mask_l]
                 pred_coef_l = pred_coef[pred_mask_l]
                 pred_score_l = pred_score[pred_mask_l]
                 # sort by score
                 order = pred_score_l.argsort()[::-1]
                 pred_bbox_l = pred_bbox_l[order]
+                # pred_center_l = pred_center_l[order]
                 pred_coef_l = pred_coef_l[order]
                 pred_score_l = pred_score_l[order]
 
                 gt_mask_l = gt_label == l
                 gt_bbox_l = gt_bbox[gt_mask_l]
-                gt_coef_l = gt_coef[gt_mask_l]
+                gt_points_xs_l = gt_points_xs[gt_mask_l]
+                gt_points_ys_l = gt_points_ys[gt_mask_l]
                 gt_difficult_l = gt_difficult[gt_mask_l]
 
                 self._n_pos[l] += np.logical_not(gt_difficult_l).sum()
@@ -150,13 +160,12 @@ class VOCPolygonMApMetric(mx.metric.EvalMetric):
                     self._match[l].extend((0,) * pred_bbox_l.shape[0])
                     continue
                 pred_bbox_l = pred_bbox_l.copy()
+                # pred_center_l = pred_center_l.copy()
                 pred_coef_l = pred_coef_l.copy()
                 gt_bbox_l = gt_bbox_l.copy()
-                gt_coef_l = gt_coef_l.copy()
-                # iou = coef_polygon_iou(pred_coef_l, pred_center_l, pred_bbox_l, gt_points_xs_l, gt_points_ys_l)
-                # calculating IOU
-                # TODO:
-                
+                gt_points_xs_l = gt_points_xs_l.copy()
+                gt_points_ys_l = gt_points_ys_l.copy()
+                iou = coef_polygon_iou(pred_coef_l, self.bases, pred_bbox_l, gt_points_xs_l, gt_points_ys_l)
                 gt_index = iou.argmax(axis=1)
                 # set -1 if there is no matching ground truth
                 gt_index[iou.max(axis=1) < self.iou_thresh] = -1

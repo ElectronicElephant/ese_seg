@@ -178,6 +178,8 @@ class YOLOV3Loss(gluon.loss.Loss):
         super(YOLOV3Loss, self).__init__(weight, batch_axis, **kwargs)
         self._sigmoid_ce = gluon.loss.SigmoidBinaryCrossEntropyLoss(from_sigmoid=False)
         self._l1_loss = gluon.loss.L1Loss()
+        self._smoothl1_loss = gluon.loss.HuberLoss()
+        self._sigmoid_bce = gluon.loss.SigmoidBCELoss()
         self._num_bases = num_bases
 
     def hybrid_forward(self, F, objness, box_centers, box_scales, coef, cls_preds,
@@ -233,13 +235,26 @@ class YOLOV3Loss(gluon.loss.Loss):
             coef_weight_t = F.Concat(coef_weight_t, weight_t, dim=-1)
         hard_objness_t = F.where(objness_t > 0, F.ones_like(objness_t), objness_t)
         new_objness_mask = F.where(objness_t > 0, objness_t, objness_t >= 0)
-
+        # print("inside loss:")
+        # print("denorm:", denorm.shape)
+        # print("coef_weight_t:", coef_weight_t.shape)
+        # print("coef_t:", coef_t.shape, nd.max(coef_t), nd.min(coef_t))
         obj_loss = F.broadcast_mul(
             self._sigmoid_ce(objness, hard_objness_t, new_objness_mask), denorm)
         center_loss = F.broadcast_mul(self._sigmoid_ce(box_centers, center_t, weight_t), denorm * 2)
         scale_loss = F.broadcast_mul(self._l1_loss(box_scales, scale_t, weight_t), denorm * 2)
         # coef_center_loss = F.broadcast_mul(self._l1_loss(coef_center, coef_center_t, weight_t), denorm * 2)
-        coef_loss = F.broadcast_mul(self._l1_loss(coef, coef_t, coef_weight_t), denorm * (self._num_bases))
+
+        # coef_loss1 = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef)/2, coef_t, coef_weight_t), denorm * (self._num_bases))
+        # coef_loss2 = F.broadcast_mul(self._sigmoid_bce(coef, coef_t + 0.5, coef_weight_t), denorm * (self._num_bases))
+        # coef_loss = coef_loss1 + coef_loss2
+        
+        # New dataset - coeffs clipped to -1 and 1 based on min max - Failed
+        # coef_loss = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef), coef_t, coef_weight_t), denorm * (self._num_bases))
+
+        # New dataset - normalized according to each coef's var or uniform
+        coef_loss = F.broadcast_mul(self._smoothl1_loss(coef, coef_t, coef_weight_t), denorm * (self._num_bases))
+        
         denorm_class = F.cast(
             F.shape_array(class_t).slice_axis(axis=0, begin=1, end=None).prod(), 'float32')
         class_mask = F.broadcast_mul(class_mask, objness_t)

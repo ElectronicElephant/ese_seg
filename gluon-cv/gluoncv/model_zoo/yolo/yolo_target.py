@@ -102,6 +102,11 @@ class YOLOV3PrefetchTargetGenerator(gluon.Block):
             np_gtx, np_gty, np_gtw, np_gth = [x.asnumpy() for x in [gtx, gty, gtw, gth]]
             np_anchors = all_anchors.asnumpy()
             # np_coef_centers = gt_coef_centers.asnumpy()
+
+            # Checking
+            # print('checking gt_coef in PrefetchTargetGenerator')
+            # print("gt_coef:", gt_coef.shape, nd.max(gt_coef), nd.min(gt_coef))
+
             np_coef = gt_coef.asnumpy()
             np_gt_ids = gt_ids.asnumpy()
             np_gt_mixratios = gt_mixratio.asnumpy() if gt_mixratio is not None else None
@@ -214,6 +219,9 @@ class YOLOV3DynamicTargetGeneratorSimple(gluon.HybridBlock):
             coef_t = F.zeros_like(box_preds.slice_axis(axis=-1, begin=0, end=1))
             # coef_t = F.broadcast_axis(coef_t, axis=2, size=2*self._deg+2)
             coef_t = F.broadcast_axis(coef_t, axis=2, size=self._num_bases)
+            # Checking
+            # print('checking coef_t in DynamicTargetGeneratorSimple')
+            # print("coef_t:", coef_t.shape, nd.max(coef_t), nd.min(coef_t))
             weight_t = F.zeros_like(box_preds.slice_axis(axis=-1, begin=0, end=2))
             class_t = F.ones_like(objness_t.tile(reps=(self._num_class))) * -1
             batch_ious = self._batch_iou(box_preds, gt_boxes)  # (B, N, M)
@@ -286,6 +294,9 @@ class YOLOV3TargetMerger(gluon.HybridBlock):
             # coef_senter_targets = F.where(mask2, coef_center[1], coef_center[0])
             mask_coef = mask.tile(reps=(self._num_bases))
             coef_targets = F.where(mask_coef, coef[1], coef[0])
+            # print('checking coef_targets')
+            # print("coef_targets:", coef_targets.shape, nd.max(coef_targets), nd.min(coef_targets))
+
             weights = F.where(mask2, weights[1], weights[0])
             mask3 = mask.tile(reps=(self._num_class,))
             class_targets = F.where(mask3, clas[1], clas[0])

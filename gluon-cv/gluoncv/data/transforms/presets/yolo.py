@@ -184,6 +184,13 @@ class YOLO3DefaultTrainTransform(object):
         gt_bboxes = mx.nd.array(bbox[np.newaxis, :, :4])
         # gt_coef_centers = mx.nd.array(bbox[np.newaxis, :, 4:6])
         gt_coef = mx.nd.array(bbox[np.newaxis, :, 4:4+self._num_bases])
+        
+        # Checking - Wrong!
+        # print('checking bbox in TrainTransform')
+        # print('bbox:', bbox.shape)  # bbox: 1, 58 - Wrong!
+        # print('checking gt_coef in TrainTransform')
+        # print("gt_coef:", gt_coef.shape, mx.nd.max(gt_coef), mx.nd.min(gt_coef))
+
         gt_ids = mx.nd.array(bbox[np.newaxis, :, 4+self._num_bases:4+self._num_bases+1])
         if self._mixup:
             gt_mixratio = mx.nd.array(bbox[np.newaxis, :, -1:])

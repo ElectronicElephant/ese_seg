@@ -91,17 +91,13 @@ def flip(bbox, size, flip_x=False, flip_y=False):
     if flip_y:
         ymax = height - bbox[:, 1]
         ymin = height - bbox[:, 3]
-        coef_center_y = height - bbox[:, 5]
         bbox[:, 1] = ymin
         bbox[:, 3] = ymax
-        bbox[:, 5] = coef_center_y
     if flip_x:
         xmax = width - bbox[:, 0]
         xmin = width - bbox[:, 2]
-        coef_center_x = width - bbox[:, 4]
         bbox[:, 0] = xmin
         bbox[:, 2] = xmax
-        bbox[:, 4] = coef_center_x
     return bbox
 
 def resize(bbox, in_size, out_size):
@@ -135,10 +131,8 @@ def resize(bbox, in_size, out_size):
     y_scale = out_size[1] / in_size[1]
     bbox[:, 1] = y_scale * bbox[:, 1]
     bbox[:, 3] = y_scale * bbox[:, 3]
-    bbox[:, 5] = y_scale * bbox[:, 5]
     bbox[:, 0] = x_scale * bbox[:, 0]
     bbox[:, 2] = x_scale * bbox[:, 2]
-    bbox[:, 4] = x_scale * bbox[:, 4]
     
     return bbox
 
@@ -212,5 +206,5 @@ def translate(bbox, x_offset=0, y_offset=0):
     bbox = bbox.copy()
     bbox[:, :2] += (x_offset, y_offset)
     bbox[:, 2:4] += (x_offset, y_offset)
-    bbox[:, 4:6] += (x_offset, y_offset)
+    # bbox[:, 4:6] += (x_offset, y_offset)
     return bbox

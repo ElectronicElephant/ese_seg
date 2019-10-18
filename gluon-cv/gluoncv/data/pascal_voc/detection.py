@@ -56,7 +56,7 @@ class VOCDetection(VisionDataset):
         self._transform = transform
         self._splits = splits
         self._items = self._load_items(splits)
-        self._anno_path = os.path.join('{}', './bases_50_xml', '{}.xml')
+        self._anno_path = os.path.join('{}', './bases_50_xml_each_var', '{}.xml')
         self._image_path = os.path.join('{}', 'img', '{}.jpg')
         self.index_map = index_map or dict(zip(self.classes, range(self.num_class)))
         self._label_cache = self._preload_labels() if preload_label else None
@@ -131,6 +131,9 @@ class VOCDetection(VisionDataset):
             obj_label_info.append(ymax)
             # obj_label_info.append(coef_center_x)
             # obj_label_info.append(coef_center_y)
+            # checked
+            # assert(max(coef) <= 0.5 and min(coef) >= -0.5)
+            # print('.', end='')
             # checked. Here len(coef) == 50
             for i in range(len(coef)):
                 obj_label_info.append(coef[i])
@@ -196,7 +199,7 @@ class coco_pretrain_Detection(VisionDataset):
                'cat', 'chair', 'cow', 'dining table', 'dog', 'horse', 'motorcycle',
                'person', 'potted plant', 'sheep', 'couch', 'train', 'tv')
 
-    def __init__(self, root='/disk1/home/tutian/ese_seg/data',
+    def __init__(self, root='/home/wenqiang/tutian_temp/coco_ese_seg',
                  # splits=((2007, 'trainval'), (2012, 'trainval')),
                  splits=((2012, 'train')),
                  transform=None, index_map=None, preload_label=True):
@@ -206,7 +209,7 @@ class coco_pretrain_Detection(VisionDataset):
         self._transform = transform
         self._splits = splits
         self._items = self._load_items(splits)
-        self._anno_path = os.path.join('{}', './cheby_fit/n8_xml', '{}.xml')
+        self._anno_path = os.path.join('{}', './che_coef_anno/n8_xml_2_bboxwh', '{}.xml')
         self._image_path = os.path.join('{}', 'JPEGImages', '{}.jpg')
         self.index_map = index_map or dict(zip(self.classes, range(self.num_class)))
         self._label_cache = self._preload_labels() if preload_label else None
@@ -270,19 +273,21 @@ class coco_pretrain_Detection(VisionDataset):
             ymin = (float(xml_box.find('ymin').text))
             xmax = (float(xml_box.find('xmax').text))
             ymax = (float(xml_box.find('ymax').text))
-            coef_center_x = (float(xml_box.find('coef_center_x').text))
-            coef_center_y = (float(xml_box.find('coef_center_y').text))
-            xml_coef = obj.find('coef').text
-            xml_coef = xml_coef.split()
-            coef = [float(xml_coef[i]) for i in range(len(xml_coef))]
+            # coef_center_x = (float(xml_box.find('coef_center_x').text))
+            # coef_center_y = (float(xml_box.find('coef_center_y').text))
+            # xml_coef = obj.find('coef').text
+            # xml_coef = xml_coef.split()
+            # coef = [float(xml_coef[i]) for i in range(len(xml_coef))]
             obj_label_info.append(xmin)
             obj_label_info.append(ymin)
             obj_label_info.append(xmax)
             obj_label_info.append(ymax)
-            obj_label_info.append(coef_center_x)
-            obj_label_info.append(coef_center_y)
-            for i in range(len(coef)):
-                obj_label_info.append(coef[i])
+            # obj_label_info.append(coef_center_x)
+            # obj_label_info.append(coef_center_y)
+            # for i in range(len(coef)):
+            #     obj_label_info.append(coef[i])
+            for i in range(50):
+                obj_label_info.append(0)
             obj_label_info.append(cls_id)
             obj_label_info.append(difficult)
             obj_label_info.append(width)
@@ -347,7 +352,7 @@ class VOC_Val_Detection(VisionDataset):
                'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
                'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
 
-    def __init__(self, root='/disk1/home/tutian/ese_seg/data',
+    def __init__(self, root='/disk1/home/tutian/ese_seg/data/',
                  # ori    splits=((2007, 'trainval'), (2012, 'trainval')),
                  splits=((2012, 'train')),
                  transform=None, index_map=None, preload_label=True):
@@ -357,8 +362,8 @@ class VOC_Val_Detection(VisionDataset):
         self._transform = transform
         self._splits = splits
         self._items = self._load_items(splits)
-        self._anno_path = os.path.join('{}', './bases_50_xml', '{}.xml')
-        self._image_path = os.path.join('{}', 'JPEGImages', '{}.jpg')
+        self._anno_path = os.path.join('{}', './label_polygon_360_xml', '{}.xml')
+        self._image_path = os.path.join('{}', 'img', '{}.jpg')
         self.index_map = index_map or dict(zip(self.classes, range(self.num_class)))
         self._label_cache = self._preload_labels() if preload_label else None
 
@@ -421,12 +426,12 @@ class VOC_Val_Detection(VisionDataset):
             ymin = (float(xml_box.find('ymin').text))
             xmax = (float(xml_box.find('xmax').text))
             ymax = (float(xml_box.find('ymax').text))
-            # xml_points_x = obj.find('points_x').text
-            # xml_points_x = xml_points_x.split()
-            # points_x = [float(xml_points_x[i]) for i in range(len(xml_points_x))]
-            # xml_points_y = obj.find('points_y').text
-            # xml_points_y = xml_points_y.split()
-            # points_y = [float(xml_points_y[i]) for i in range(len(xml_points_y))]
+            xml_points_x = obj.find('points_x').text
+            xml_points_x = xml_points_x.split()
+            points_x = [float(xml_points_x[i]) for i in range(len(xml_points_x))]
+            xml_points_y = obj.find('points_y').text
+            xml_points_y = xml_points_y.split()
+            points_y = [float(xml_points_y[i]) for i in range(len(xml_points_y))]
             obj_label_info.append(xmin)
             obj_label_info.append(ymin)
             obj_label_info.append(xmax)

@@ -161,6 +161,11 @@ class YOLOOutputV3(gluon.HybridBlock):
         # raw_coef_centers = pred.slice_axis(axis=-1, begin=4, end=6) # raw_coef_center_imitate wh
         # begin and end below need to be minused by 2
         raw_coefs = pred.slice_axis(axis=-1, begin=4, end=4 + self._num_bases)
+
+        # #checking
+        # print('checking raw_coefs in YOLOOutputV3')
+        # print("raw_coefs:", raw_coefs.shape, mx.nd.max(raw_coefs), mx.nd.min(raw_coefs))
+
         objness = pred.slice_axis(axis=-1, begin=4 + self._num_bases, end=4 + self._num_bases + 1)
         class_pred = pred.slice_axis(axis=-1, begin=4 + self._num_bases + 1, end=None)
 
@@ -383,8 +388,15 @@ class YOLOV3(gluon.HybridBlock):
                 dets, box_centers, box_scales, coef, objness, class_pred, anchors, offsets = output(tip)
                 all_box_centers.append(box_centers.reshape((0, -3, -1)))
                 all_box_scales.append(box_scales.reshape((0, -3, -1)))
-                # all_coef_center.append(coef_center.reshape((0, -3, -1)))
+                # all_coef_center.append(coef_center.reshape((0, -3, -1))
                 all_coef.append(coef.reshape((0, -3, -1)))
+
+                # checking
+                # print('checking coef in YOLOV3')
+                # print('coef: ', coef.shape, mx.nd.max(coef), mx.nd.min(coef))
+                # print('all_coef: ', all_coef.shape, nd.max(all_coef), nd.min(all_coef))
+
+                # all_coef.append(coef.reshape((0, -3, -1)))
                 all_objectness.append(objness.reshape((0, -3, -1)))
                 all_class_pred.append(class_pred.reshape((0, -3, -1)))
                 all_anchors.append(anchors)
