@@ -1,9 +1,4 @@
-Official implementation of [Explicit Shape Encoding for Real-time Instance Segmentation](https://arxiv.org/abs/1908.04067). 
-
-<p align='center'>
-    <img src="quality.png", width="640">
-</p>
-
+Test implementation of USD-Seg. 
 
 Contents
 
@@ -24,18 +19,21 @@ Contents
 ### Requirements
 - python 3.6
 - mxnet 1.5.0
-- shapely 1.6.4
+- scikit-lean 0.21.3
 
 Other common package version is not very crucial.
+If you use different versions of scikit-learn, you may have to retrain the dictionary by your own.
 
 ### Features
-- Include both ESE-Seg(Yolov3-darknet53) and ESE-Seg(Yolov3-tiny).
+- Include both USD-Seg(Yolov3-darknet53). USD-Seg(Yolov3-tiny) is still in development but we have a positive altitude.
 - Good performance
 
   |416x416 |VOC2012 Test(mAP)| SBD Test(mAP)| Time per forward<br/>(batch size = 1)|
   | :-: | :-:| :-:|:-:|
   | ESE-Seg(Darknet53) | 69.3% | 64.1% |26 ms|
   | ESE-Seg(Darknet-tiny)| 53.2% | 48.1% |8.0 ms|
+  | USD-Seg | | | |
+  | USD-Seg(tiny) | | | |
   
   The models are trained from bbox-pretrained weights on coco and then trained in SBD.
 
