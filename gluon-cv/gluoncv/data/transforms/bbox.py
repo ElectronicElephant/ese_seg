@@ -175,9 +175,9 @@ def val_resize(bbox, in_size, out_size, num_bases):
     bbox[:, 2] = x_scale * bbox[:, 2]
     
     # resize polygon - NO USE
-    # for i in range(360):
-    #     bbox[:, 4+360+i] = y_scale * bbox[:, 4+360+i]
-    #     bbox[:, 4+i] = x_scale * bbox[:, 4+i]
+    for i in range(360):
+        bbox[:, 4+360+i] = y_scale * bbox[:, 4+360+i]
+        bbox[:, 4+i] = x_scale * bbox[:, 4+i]
     
     return bbox
 

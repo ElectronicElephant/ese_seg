@@ -22,6 +22,8 @@ from gluoncv.utils.metrics.coco_detection import COCODetectionMetric
 from gluoncv.utils.metrics.voc_polygon_detection import VOC07PolygonMApMetric
 from gluoncv.utils import LRScheduler
 from tqdm import tqdm
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train YOLO networks with random input shape.')
     parser.add_argument('--network', type=str, default='tiny_darknet',
@@ -29,14 +31,14 @@ def parse_args():
     parser.add_argument('--data-shape', type=int, default=416,
                         help="Input data shape for evaluation, use 320, 416, 608... " +
                              "Training is with random shapes from (320 to 608).")
-    parser.add_argument('--batch-size', type=int, default=20,
+    parser.add_argument('--batch-size', type=int, default=4,
                         help='Training mini-batch size')
     parser.add_argument('--dataset', type=str, default='voc',
                         help='Training dataset. Now support voc.')
     parser.add_argument('--num-workers', '-j', dest='num_workers', type=int,
-                        default=2, help='Number of data workers, you can use larger '
+                        default=8, help='Number of data workers, you can use larger '
                         'number to accelerate data loading, if you CPU and GPUs are powerful.')
-    parser.add_argument('--gpus', type=str, default='1',
+    parser.add_argument('--gpus', type=str, default='0',
                         help='Training with GPUs, you can specify 1,3 for example.')
     parser.add_argument('--epochs', type=int, default=800,
                         help='Training epochs.')
@@ -89,7 +91,7 @@ def parse_args():
     parser.add_argument('--no-mixup-epochs', type=int, default=20,
                         help='Disable mixup training if enabled in the last N epochs.')
     parser.add_argument('--label-smooth', action='store_true', help='Use label smoothing.')
-    parser.add_argument('--deg', type=int, default=8, help='cheby degree , actually 17')
+    parser.add_argument('--num_bases', type=int, default=50, help='the number of bases')
     parser.add_argument('--val_voc2012', type=bool, default=False, help='val in pascal voc 2012')
     args = parser.parse_args()
     return args
@@ -101,9 +103,9 @@ def get_dataset(dataset, args):
             splits=[('sbdche', 'val_2012_bboxwh')])
         else:
             val_dataset = gdata.VOC_Val_Detection(
-                splits=[('sbdche', 'val'+'_'+str(args.deg)+'_bboxwh')])
-        val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
-        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
+                splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
+        val_metric = VOC07MApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
+        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
     else:
         raise NotImplementedError('Dataset: {} not implemented.'.format(dataset))
     return val_dataset, val_metric, val_polygon_metric
@@ -113,7 +115,7 @@ def get_dataloader(net, val_dataset, data_shape, batch_size, num_workers, args):
     width, height = data_shape, data_shape
     val_batchify_fn = Tuple(Stack(), Pad(pad_val=-1))
     val_loader = gluon.data.DataLoader(
-        val_dataset.transform(YOLO3DefaultValTransform(width, height)),
+        val_dataset.transform(YOLO3DefaultValTransform(width, height, num_bases=50)),
         batch_size, False, batchify_fn=val_batchify_fn, last_batch='keep', num_workers=num_workers)
     return val_loader
 
@@ -130,9 +132,9 @@ def validate(net, val_data, ctx, eval_metric, polygon_metric, args):
         det_bboxes = []
         det_ids = []
         det_scores = []
-        det_coef_centers = []
+        # det_coef_centers = []
         det_coefs = []
-        det_r_all = []
+        # det_r_all = []
         gt_bboxes = []
         gt_points_xs = []
         gt_points_ys = []
@@ -142,10 +144,10 @@ def validate(net, val_data, ctx, eval_metric, polygon_metric, args):
         gt_heights = []
         for x, y in zip(data, label):
             # get prediction results
-            ids, scores, bboxes, absolute_coef_centers, coef = net(x)
+            ids, scores, bboxes, coef = net(x)
             det_ids.append(ids)
             det_scores.append(scores)
-            det_coef_centers.append(absolute_coef_centers)
+            # det_coef_centers.append(absolute_coef_centers)
             det_coefs.append(coef)
             # clip to image size
             det_bboxes.append(bboxes.clip(0, batch[0].shape[2]))
@@ -159,10 +161,12 @@ def validate(net, val_data, ctx, eval_metric, polygon_metric, args):
             gt_heights.append(y.slice_axis(axis=-1, begin=7+720, end=8+720))
         # update metric
         eval_metric.update(det_bboxes, det_ids, det_scores, gt_bboxes, gt_ids, gt_difficults)
-        polygon_metric.update(det_bboxes, det_coef_centers, det_coefs, det_ids, det_scores, gt_bboxes, gt_points_xs, gt_points_ys, gt_ids, gt_widths, gt_heights, gt_difficults)
+        polygon_metric.update(det_bboxes, det_coefs, det_ids, det_scores, gt_bboxes, gt_points_xs, gt_points_ys, gt_ids, gt_widths, gt_heights, gt_difficults)
     return eval_metric.get(), polygon_metric.get()
+
+
 def demo_val(net, val_data, eval_metric, polygon_metric, ctx, args):
-    """Training pipeline"""
+    """Eval pipeline"""
     net.collect_params().reset_ctx(ctx)
     if args.no_wd:
         for k, v in net.collect_params('.*beta|.*gamma|.*bias').items():
@@ -175,7 +179,7 @@ def demo_val(net, val_data, eval_metric, polygon_metric, ctx, args):
     logging.basicConfig()
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    log_file_path = args.save_prefix + '_train.log'
+    log_file_path = args.save_prefix + '_val.log'
     log_dir = os.path.dirname(log_file_path)
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -192,7 +196,7 @@ def demo_val(net, val_data, eval_metric, polygon_metric, ctx, args):
     val_msg = '\n'.join(['{}={}'.format(k, v) for k, v in zip(map_name, mean_ap)])
     logger.info('[Epoch {}] Validation: \n{}'.format(0, val_msg))
     polygonval_msg = '\n'.join(['{}={}'.format(k, v) for k, v in zip(polygonmap_name, polygonmean_ap)])
-    logger.info('[Epoch {}] PolygonValidation: \n{}'.format(0, polygonval_msg))
+    logger.info('[Epoch {}] MaskValidation: \n{}'.format(0, polygonval_msg))
 
 if __name__ == '__main__':
     args = parse_args()
@@ -222,7 +226,7 @@ if __name__ == '__main__':
             warnings.simplefilter("always")
             net.initialize()
             async_net.initialize()
-    print(net)
+    # print(net)
     # val data
     val_dataset, eval_metric, polygon_metric= get_dataset(args.dataset, args)
     val_data = get_dataloader(

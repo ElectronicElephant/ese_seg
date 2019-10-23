@@ -81,6 +81,7 @@ def plot_r_polygon(img, bboxes, coefs, img_w, img_h, scores=None, labels=None, t
     ax = plot_image(img, ax=ax, reverse_rgb=reverse_rgb)
 
     if len(bboxes) < 1:
+        print('len bboxes < 1')
         return ax
 
     if isinstance(bboxes, mx.nd.NDArray):
@@ -113,8 +114,10 @@ def plot_r_polygon(img, bboxes, coefs, img_w, img_h, scores=None, labels=None, t
 
     for i, bbox in enumerate(bboxes):
         if scores is not None and scores.flat[i] < thresh:
+            # print(' < thresh')
             continue
         if labels is not None and labels.flat[i] < 0:
+            # print(' < 0')
             continue
         cls_id = int(labels.flat[i]) if labels is not None else -1
         if cls_id not in colors:
@@ -150,15 +153,18 @@ def plot_r_polygon(img, bboxes, coefs, img_w, img_h, scores=None, labels=None, t
 
         mask_single = np.dot(coefs_single, bases)
         mask_single = np.reshape(mask_single, (64, 64))
-        theta = (mask_single.max() + mask_single.min()) / 2
-        mask_single = (mask_single > theta) * 255
+        # theta = (mask_single.max() + mask_single.min()) / 2
+        # mask_single = (mask_single > theta) * 255
 
         # r_all = cheby(coef)  # (1,360)
         bboxw = xmax - xmin
         bboxh = ymax - ymin 
         
         board = np.zeros((max(ymax, img_h), max(xmax, img_w), 4))
-        resized = cv.resize(mask_single, (bboxw, bboxh), interpolation = cv.INTER_NEAREST)
+        # resized = cv.resize(mask_single, (bboxw, bboxh), interpolation = cv.INTER_NEAREST)
+        resized = cv.resize(mask_single, (bboxw, bboxh))
+        theta = (resized.max() + resized.min()) / 2
+        resized = (resized > theta)
         # print(board.shape, xmin, xmax, ymin, ymax, bboxw, bboxh, np.array(resized).shape)
         if (ymin<0):
             resized = resized[-ymin:,:]
@@ -167,25 +173,11 @@ def plot_r_polygon(img, bboxes, coefs, img_w, img_h, scores=None, labels=None, t
             resized = resized[:, -xmin:]
             xmin = 0
         for i in range(4):
-            board[ymin:ymax,xmin:xmax, i] = resized*colors[cls_id][i] / 255
+            board[ymin:ymax,xmin:xmax, i] = resized*colors[cls_id][i]
         # board = np.dot(np.array(colors[cls_id])[:3], board)
+
+        # print('Showing image')
 
         ax.imshow(board, alpha=0.5)
 
-        # r_all_real = r_all * np.sqrt(bboxw*bboxw+bboxh*bboxh)
-        # r_all_real = r_all_real.astype(np.float32).reshape(360,)
-        # theta_list = np.arange(359 , -1 ,-1)
-        # theta_list = theta_list.astype(np.float32)
-        # x, y = cv.polarToCart(r_all_real, theta_list, angleInDegrees=True)
-        # x = x + float(abpoints[i][0])
-        # y = y + float(abpoints[i][1])
-        # x = np.clip(x, xmin, xmax)
-        # y = np.clip(y, ymin, ymax)
-        # polygon = [[int(x[j]), int(y[j])] for j in range(360)]
-        # polygon = np.array(polygon).reshape((360, 2))
-
-        # pgon = plt.Polygon(polygon, fill=False,
-        #                      edgecolor=colors[cls_id],
-        #                      linewidth=3.5)
-        # ax.add_patch(pgon)
     return ax

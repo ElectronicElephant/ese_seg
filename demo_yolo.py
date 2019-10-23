@@ -6,7 +6,10 @@ import gluoncv as gcv
 import numpy as np
 import time
 from gluoncv.data.transforms import presets
+import matplotlib
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
+plt.ioff()
 from tqdm import tqdm
 import cv2 as cv
 import shutil
@@ -15,13 +18,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Test with YOLO networks.')
     parser.add_argument('--network', type=str, default='yolo3_darknet53_voc',
                         help="Base network name yolo3_darknet53_voc\yolo3_tiny_darknet_voc")
-    parser.add_argument('--images', type=str, default= '',
+    parser.add_argument('--images', type=str, default= 'vis_img',
                         help='Test images, use comma to split multiple.')
-    parser.add_argument('--save_dir', type=str, default='',
+    parser.add_argument('--save_dir', type=str, default='vis_demo_pretrain_cosine_val2012_var_first_resize',
                         help='')
     parser.add_argument('--gpus', type=str, default='0',
                         help='Training with GPUs, you can specify 1,3 for example.')
-    parser.add_argument('--pretrained', type=str, default='',
+    parser.add_argument('--pretrained', type=str, default='./darknet53_result_pretrain_cosine_val2012_var_yolo3_darknet53_voc_0200_0.0000.params',
                         help='Load weights from previously saved parameters.')
     parser.add_argument('--thresh', type=float, default=0.45,
                         help='Threshold of object score when visualize the bboxes.')
@@ -36,29 +39,38 @@ if __name__ == '__main__':
     if not os.path.exists(args.images):
         os.mkdir(args.images)  
     # grab some image if not specified
-    if not args.images.strip():
-        gcv.utils.download("https://cloud.githubusercontent.com/assets/3307514/" +
-            "20012568/cbc2d6f6-a27d-11e6-94c3-d35a9cb47609.jpg", 'street.jpg')
-        image_list = ['street.jpg']
-    else:
-        image_nameList = os.listdir(args.images)
-        image_list = []
-        for i in image_nameList:
-            image_list.append(os.path.join(args.images,i))
+    # if not args.images.strip():
+    #     gcv.utils.download("https://cloud.githubusercontent.com/assets/3307514/" +
+    #         "20012568/cbc2d6f6-a27d-11e6-94c3-d35a9cb47609.jpg", 'street.jpg')
+    #     image_list = ['street.jpg']
+    # else:
+    #     image_nameList = os.listdir(args.images)
+    #     image_list = []
+    #     for i in image_nameList:
+    #         image_list.append(os.path.join(args.images,i))
     if args.pretrained.lower() in ['true', '1', 'yes', 't']:
         net = gcv.model_zoo.get_model(args.network, pretrained=True)
     else:
         net = gcv.model_zoo.get_model(args.network, pretrained=False, pretrained_base=False)
         net.load_parameters(args.pretrained)
     net.set_nms(0.45, 200)
+
+    # Label smooth
+    net._target_generator._label_smooth = True
+
     net.collect_params().reset_ctx(ctx = ctx)
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
-        
-    image_list_batch = image_list 
+
+    image_list_batch = []
+    image_list = open('/disk1/home/tutian/ese_seg/sbd/ImageSets/Segmentation/val_2012_bboxwh.txt').readlines()
+    for img in image_list:
+        image_list_batch.append('/disk1/home/tutian/ese_seg/sbd/img/'+img[:-1]+'.jpg')
+    # image_list_batch = image_list 
     total_time = 0
+    # print(image_list_batch)
     for image in tqdm(image_list_batch):
-        fig = plt.figure(figsize=(12.8, 7.2))
+        fig = plt.figure(figsize=(10, 10))
         ax = fig.add_subplot(1, 1, 1)
         img_str = image.split('/')[-1]
         x, img = presets.yolo.load_test(image, short=416)
@@ -66,8 +78,10 @@ if __name__ == '__main__':
         img_h = img.shape[1]
         x = x.as_in_context(ctx[0])
         a = time.time()
-        ids, scores, bboxes, absolute_coef_centers, coef = [xx[0].asnumpy() for xx in net(x)]
-        ax = gcv.utils.viz.plot_r_polygon(img, bboxes,absolute_coef_centers, coef, img_w, img_h, scores, ids , thresh=args.thresh,class_names=net.classes, ax=ax)
+        ids, scores, bboxes, coef = [xx[0].asnumpy() for xx in net(x)]
+        # print('score\n', np.unique(scores))
+        # print('debug', 'ids\n', np.unique(ids), 'scores\n', scores, 'bboxes', bboxes, 'coef', coef)
+        ax = gcv.utils.viz.plot_r_polygon(img, bboxes, coef, img_w, img_h, scores, ids , thresh=args.thresh,class_names=net.classes, ax=ax, num_bases = 50)
         b = time.time()
         each_time = b-a
         total_time += each_time

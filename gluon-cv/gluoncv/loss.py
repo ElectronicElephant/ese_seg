@@ -179,7 +179,8 @@ class YOLOV3Loss(gluon.loss.Loss):
         self._sigmoid_ce = gluon.loss.SigmoidBinaryCrossEntropyLoss(from_sigmoid=False)
         self._l1_loss = gluon.loss.L1Loss()
         self._smoothl1_loss = gluon.loss.HuberLoss()
-        self._sigmoid_bce = gluon.loss.SigmoidBCELoss()
+        # self._sigmoid_bce = gluon.loss.SigmoidBCELoss()
+        # self._focal_loss = FocalLoss(sparse_label=False)
         self._num_bases = num_bases
 
     def hybrid_forward(self, F, objness, box_centers, box_scales, coef, cls_preds,
@@ -189,7 +190,7 @@ class YOLOV3Loss(gluon.loss.Loss):
         Parameters
         ----------
         objness : mxnet.nd.NDArray
-            Predicted objectness (B, N), range (0, 1).
+            Predicted objectness (B, N), range (0, 1).  B * N * 1 - Tutian
         box_centers : mxnet.nd.NDArray
             Predicted box centers (x, y) (B, N, 2), range (0, 1).
         box_scales : mxnet.nd.NDArray
@@ -229,16 +230,26 @@ class YOLOV3Loss(gluon.loss.Loss):
         denorm = F.cast(
             F.shape_array(objness_t).slice_axis(axis=0, begin=1, end=None).prod(), 'float32')
         weight_t = F.broadcast_mul(weight_t, objness_t)
-        coef_weight_t = weight_t
-        # for i in range(self._deg):
-        for _ in range(int((self._num_bases - 2) / 2)):
-            coef_weight_t = F.Concat(coef_weight_t, weight_t, dim=-1)
+
+        # Weights of coefs
+        # coef_w_ones = F.ones_like(weight_t)
+        # coef_weight_t = coef_w_ones
+        # for _ in range(int((self._num_bases - 2) / 2)):
+        #     coef_weight_t = F.Concat(coef_weight_t, coef_w_ones, dim=-1)
+
+        coef_w_ones = F.ones_like(objness)  # B * N * 1
+        coef_weight_t = F.ones_like(coef_w_ones) * 10  # B * N * 1
+        for i in range(self._num_bases - 1):
+            if 9 - i >= 1:
+                w = 9 - i
+            else:
+                w = 1
+            coef_weight_t = F.Concat(coef_weight_t, coef_w_ones * w, dim=-1)
+        # Then, it SHOULD BE B * N * 50
+
         hard_objness_t = F.where(objness_t > 0, F.ones_like(objness_t), objness_t)
         new_objness_mask = F.where(objness_t > 0, objness_t, objness_t >= 0)
-        # print("inside loss:")
-        # print("denorm:", denorm.shape)
-        # print("coef_weight_t:", coef_weight_t.shape)
-        # print("coef_t:", coef_t.shape, nd.max(coef_t), nd.min(coef_t))
+
         obj_loss = F.broadcast_mul(
             self._sigmoid_ce(objness, hard_objness_t, new_objness_mask), denorm)
         center_loss = F.broadcast_mul(self._sigmoid_ce(box_centers, center_t, weight_t), denorm * 2)
@@ -251,9 +262,9 @@ class YOLOV3Loss(gluon.loss.Loss):
         
         # New dataset - coeffs clipped to -1 and 1 based on min max - Failed
         # coef_loss = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef), coef_t, coef_weight_t), denorm * (self._num_bases))
-
         # New dataset - normalized according to each coef's var or uniform
-        coef_loss = F.broadcast_mul(self._smoothl1_loss(coef, coef_t, coef_weight_t), denorm * (self._num_bases))
+        coef_loss = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef[:,:,:20]), F.tanh(coef_t[:,:,:20]), coef_weight_t[:,:,:20]), denorm * (20))
+        # coef_loss = self._focal_loss(coef, coef_t, coef_weight_t)
         
         denorm_class = F.cast(
             F.shape_array(class_t).slice_axis(axis=0, begin=1, end=None).prod(), 'float32')

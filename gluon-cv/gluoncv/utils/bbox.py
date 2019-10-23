@@ -51,32 +51,6 @@ def bbox_iou(bbox_a, bbox_b, offset=0):
     return area_i / (area_a[:, None] + area_b - area_i)
 
 
-def mask_iou(mask_pred, polygon_gt):
-    masks_pred = mask_pred.reshape(-1, 64, 64)
-    N, h, w = masks_pred.shape
-    M = polygon_gt.shape[0]
-    ious = np.zeros((N, M))
-    for n in range(N):
-        mask_pd = masks_pred[n]
-        for m in range(M):
-            mask_gt = np.zeros((h, w))
-            contour = np.expand_dims(polygon_gt[m], axis=1)
-            contour = np.expand_dims(contour, axis=0)
-            # print(contour.shape)
-            cv.drawContours(mask_gt, contour.astype(np.int32), -1, (255), -1)
-            
-            thetas = range(10,260,10)
-            iou_thetas = []
-            for theta in thetas:
-                iou_thetas.append(jaccard_similarity_score(mask_gt, binarize(mask_pd, theta)))
-            iou = max(iou_thetas)
-
-            # iou = jaccard_similarity_score(mask_gt, mask_pd)
-            ious[n][m] = iou
-
-    return ious
-
-
 def polygon_iou(polygon_as, polygon_bs, offset=0):
     """Calculate Intersection-Over-Union(IOU) of two polygons
     
@@ -141,73 +115,6 @@ def cheby(coef):
     return r
 
 
-def coef_trans_mask(coefs, bboxs, bases):
-    
-    """Reconstruct the Masks by Coefs
-    Parameters
-    ----------
-    coefs : numpy.ndarray
-         An ndarray with shape :math'(N,2*deg+2)
-    bboxs : numpy.ndarray
-         An ndarray with shape :math'(N,4)  x1y1x2y2
-    bases : numpy.ndarray
-         The fixed bases
-    
-    Return 
-    polygons : numpy.ndarray
-         An ndarray with shape :math'(N,360,2) # Not True, actually a Nx64x64
-    """
-
-    bboxs_x1 = bboxs[:, 0].reshape(-1, 1)  # N,1
-    bboxs_x2 = bboxs[:, 2].reshape(-1, 1)  # N,1
-    bboxs_y1 = bboxs[:, 1].reshape(-1, 1)  # N,1
-    bboxs_y2 = bboxs[:, 3].reshape(-1, 1)  # N,1
-    bboxsw = np.abs(bboxs_x2 - bboxs_x1)  # N,1
-    bboxsh = np.abs(bboxs_y2 - bboxs_y1)  # N,1
-
-    masks = np.dot(coefs, bases)
-    # print(np.unique(masks))
-    masks = scale_to_255(masks).astype(np.uint8)
-    # return masks.astype(np.uint8)
-    # masks = binarize(masks).astype(np.uint8)
-
-    polygons = []
-    for i, mask in enumerate(masks):
-        mask_copy = mask.reshape((64, 64)).astype(np.uint8).copy()
-        # print(mask_copy.shape)
-        # print(type(mask_copy))
-        # print(np.unique(mask_copy))
-
-        # _, contours, _ = cv.findContours(mask_copy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-        # contours = np.array(contours)
-        # contours = np.squeeze(contours, 0)
-        # contours = np.squeeze(contours, 1)
-
-        bctr_x = abs(bboxs_x1[i] - bboxs_x2[i])/2
-        bctr_y = abs(bboxs_y1[i] - bboxs_y2[i])/2
-        contours -= [bctr_x, bctr_y]
-        contours[:,0] *= bboxsw / 64
-        contours[:,1] *= bboxsh / 64
-        contours += [bctr_x, bctr_y]
-        polygons.append(contours)
-
-    # relative_lens = np.sqrt(bboxsw*bboxsw+bboxsh*bboxsh)  # N,1
-    # center_xs = centers[:, 0].reshape(-1, 1)  # N,1
-    # center_ys = centers[:, 1].reshape(-1, 1)  # N,1
-    # rs = cheby(coefs) * relative_lens  # N, 360
-    # rs = rs.astype(np.float32)       # N, 360
-    # theta_list = np.arange(359, -1, -1).reshape(1, 360)  # 1, 360
-    # theta_list = theta_list.repeat(int(rs.shape[0]), axis=0).astype(np.float32)  # N,360
-    # x, y = cv.polarToCart(rs, theta_list, angleInDegrees=True)  # N,360    N,360
-    # x = x + center_xs.astype(np.float32)  # N.360
-    # y = y + center_ys.astype(np.float32)  # N,360
-    
-    # x = np.clip(x, bboxs_x1, bboxs_x2).reshape(-1, 360, 1)  # N,360,1
-    # y = np.clip(y, bboxs_y1, bboxs_y2).reshape(-1, 360, 1)  # N,360,1
-    # polygons = np.concatenate((x, y), axis=-1)  # N,360,2
-     
-    return polygons 
-   
 def coef_iou(coef_as, coef_bs, bbox_as, bbox_bs, center_as, center_bs):
     """Calculate Intersection-Over-Union(IOU) of two coefs
     Parameters
@@ -238,6 +145,7 @@ def coef_iou(coef_as, coef_bs, bbox_as, bbox_bs, center_as, center_bs):
     
     return iou
 
+
 def new_mask_iou(coefs, bboxs, bases, polygon_gts):
     # Here the bbox stands for the predicted bbox
     bboxs_x1 = bboxs[:, 0].reshape(-1, 1)  # N,1
@@ -248,43 +156,21 @@ def new_mask_iou(coefs, bboxs, bases, polygon_gts):
     # bboxsh = np.abs(bboxs_y2 - bboxs_y1)  # N,1
     # Tutian doesn't think it necessary to add np.abs() - May ask Haiyang
 
-    coefs = np.tanh(coefs) / 2
+    # uniform
+    # coefs = np.clip(coefs, 0, 1)  # No difference
+    coefs = coefs * (x_max-x_min) + x_min
+
+    # var
+    # coefs = coefs * sqrt_var + x_mean
     # print(np.unique(coefs))
     masks = np.dot(coefs, bases)
-    # print(np.unique(masks))
-    # masks = scale_to_255(masks).astype(np.uint8)
-    # masks = binarize(masks).astype(np.uint8)
-    masks = (masks >= 0).astype(np.uint8)  # the threshold
-    masks *= 255  # Can be simplified
+
+    # masks = (masks >= ((masks.max()+masks.min())/2)).astype(np.uint8)  # the threshold
+    # masks *= 255  # Can be simplified
 
     masks_pred = masks.reshape(-1, 64, 64)
     N = masks_pred.shape[0]
     M = polygon_gts.shape[0]
-
-    # vis - all pd and all gt on two img respectively
-    # No original image size info. Instead, just create a board that is large enough to hold the gtbbox and pdbbox
-    board_x = int(max(np.max(bboxs_x1), np.max(bboxs_x2), np.max(polygon_gts[:,0]))) + 1
-    board_y = int(max(np.max(bboxs_y1), np.max(bboxs_y2), np.max(polygon_gts[:,1]))) + 1
-    board_pd = np.zeros((board_y, board_x))
-    board_gt = np.zeros((board_y, board_x))
-    # N for predict and M for gt
-    for n in range(N):
-        x1, x2, y1, y2 = int(bboxs_x1[n]), int(bboxs_x2[n]), int(bboxs_y1[n]), int(bboxs_y2[n])
-        w, h = x2 - x1, y2 - y1
-        # Drawing the predicted mask to the board
-        # (h, w) need to be carefully checked. - I'm not quite sure
-        mask_pd = masks_pred[n]
-        resized = cv.resize(mask_pd, (w, h), interpolation = cv.INTER_NEAREST)
-        board_pd[y1:y2, x1:x2] = np.array(resized)
-    for m in range(M):
-        # Drawing the gt to the board
-        contour = np.expand_dims(polygon_gts[m], axis=1)
-        contour = np.expand_dims(contour, axis=0)
-        cv.drawContours(board_gt, contour.astype(np.int32), -1, (1), -1)
-    save_time = time()
-    Image.fromarray((board_gt * 255).astype(np.uint8)).save(f'vis_debug/{save_time}_gt.png')
-    Image.fromarray(board_pd.astype(np.uint8)).save(f'vis_debug/{save_time}_pd.png')
-
 
     ious = np.zeros((N, M))
     for n in range(N):
@@ -304,7 +190,13 @@ def new_mask_iou(coefs, bboxs, bases, polygon_gts):
 
             # Drawing the predicted mask to the board
             # (w, h) need to be carefully checked. 
-            resized = cv.resize(mask_pd, (w, h), interpolation = cv.INTER_NEAREST)
+            # resized = cv.resize(mask_pd, (w, h), interpolation = cv.INTER_NEAREST)
+            resized = cv.resize(mask_pd, (w, h))
+
+            # First resize then binarize
+            resized = (resized >= ((resized.max()+resized.min())/2)).astype(np.uint8)  # the threshold
+            # masks *= 255  # Can be simplified
+
             board_pd[y1:y2, x1:x2] = np.array(resized)
 
             # Drawing the gt to the board
@@ -313,14 +205,8 @@ def new_mask_iou(coefs, bboxs, bases, polygon_gts):
             # print(contour.shape)
             cv.drawContours(board_gt, contour.astype(np.int32), -1, (1), -1)
 
-            iou = jaccard_score(board_pd.flatten()/255, board_gt.flatten())
+            iou = jaccard_score(board_pd.flatten(), board_gt.flatten())
 
-            # debugging
-            # save_time = time()
-            # Image.fromarray((board_gt * 255).astype(np.uint8)).save(f'vis_debug/{iou}_{save_time}_gt.png')
-            # Image.fromarray(board_pd.astype(np.uint8)).save(f'vis_debug/{iou}_{save_time}_pd.png')
-
-            # iou = jaccard_similarity_score(mask_gt, mask_pd)
             ious[n][m] = iou
 
     return ious
