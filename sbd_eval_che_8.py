@@ -104,8 +104,8 @@ def get_dataset(dataset, args):
         else:
             val_dataset = gdata.VOC_Val_Detection(
                 splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
-        val_metric = VOC07MApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
-        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
+        val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
+        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
     else:
         raise NotImplementedError('Dataset: {} not implemented.'.format(dataset))
     return val_dataset, val_metric, val_polygon_metric
@@ -142,6 +142,10 @@ def validate(net, val_data, ctx, eval_metric, polygon_metric, args):
         gt_difficults = []
         gt_widths = []
         gt_heights = []
+
+        # WQ Analysis
+        gt_imgids = []
+        gt_coefs = []
         for x, y in zip(data, label):
             # get prediction results
             ids, scores, bboxes, coef = net(x)
@@ -159,9 +163,13 @@ def validate(net, val_data, ctx, eval_metric, polygon_metric, args):
             gt_difficults.append(y.slice_axis(axis=-1, begin=5+720, end=6+720) if y.shape[-1] > 5 else None)
             gt_widths.append(y.slice_axis(axis=-1, begin=6+720, end=7+720))
             gt_heights.append(y.slice_axis(axis=-1, begin=7+720, end=8+720))
+
+            # Added for WenQiang analysis
+            gt_imgids.append(y.slice_axis(axis=-1, begin=8+720, end=9+720))
+            gt_coefs.append(y.slice_axis(axis=-1, begin=9+720, end=9+720+50))
         # update metric
         eval_metric.update(det_bboxes, det_ids, det_scores, gt_bboxes, gt_ids, gt_difficults)
-        polygon_metric.update(det_bboxes, det_coefs, det_ids, det_scores, gt_bboxes, gt_points_xs, gt_points_ys, gt_ids, gt_widths, gt_heights, gt_difficults)
+        polygon_metric.update(det_bboxes, det_coefs, det_ids, det_scores, gt_bboxes, gt_points_xs, gt_points_ys, gt_ids, gt_widths, gt_heights, gt_difficults, gt_coefs, gt_imgids)
     return eval_metric.get(), polygon_metric.get()
 
 

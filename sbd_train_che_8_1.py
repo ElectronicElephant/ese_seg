@@ -22,6 +22,8 @@ from gluoncv.utils.metrics.coco_detection import COCODetectionMetric
 from gluoncv.utils.metrics.voc_polygon_detection import VOC07PolygonMApMetric
 from gluoncv.utils import LRScheduler
 
+from tqdm import tqdm
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train YOLO networks with random input shape.')
     parser.add_argument('--network', type=str, default='tiny_darknet',
@@ -29,14 +31,14 @@ def parse_args():
     parser.add_argument('--data-shape', type=int, default=416,
                         help="Input data shape for evaluation, use 320, 416, 608... " +
                              "Training is with random shapes from (320 to 608).")
-    parser.add_argument('--batch-size', type=int, default=40,
+    parser.add_argument('--batch-size', type=int, default=2,
                         help='Training mini-batch size')
     parser.add_argument('--dataset', type=str, default='voc',
                         help='Training dataset. Now support voc.')
     parser.add_argument('--num-workers', '-j', dest='num_workers', type=int,
                         default=8, help='Number of data workers, you can use larger '
                         'number to accelerate data loading, if you CPU and GPUs are powerful.')
-    parser.add_argument('--gpus', type=str, default='1',
+    parser.add_argument('--gpus', type=str, default='0',
                         help='Training with GPUs, you can specify 1,3 for example.')
     parser.add_argument('--epochs', type=int, default=200,
                         help='Training epochs.')
@@ -48,7 +50,7 @@ def parse_args():
                         'You can specify it to 100 for example to start from 100 epoch.')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='Learning rate, default is 0.001')
-    parser.add_argument('--lr-mode', type=str, default='step',
+    parser.add_argument('--lr-mode', type=str, default='cosine',
                         help='learning rate scheduler mode. options are step, poly and cosine.')
     parser.add_argument('--lr-decay', type=float, default=0.1,
                         help='decay rate of learning rate. default is 0.1.')
@@ -99,16 +101,19 @@ def parse_args():
 
 def get_dataset(dataset, args):
     if dataset.lower() == 'voc':
-        train_dataset = gdata.VOCDetection(
-            splits=[('sbdche', 'train'+'_'+'8'+'_bboxwh')])
         if args.val_2012 == True:
+            train_dataset = gdata.VOCDetection(
+                splits=[('sbdche', 'train_voc2012_bboxwh')])
+
             val_dataset = gdata.VOC_Val_Detection(
                 splits=[('sbdche', 'val_2012_bboxwh')])
         else:
+            train_dataset = gdata.VOCDetection(
+                splits=[('sbdche', 'train'+'_'+'8'+'_bboxwh')])
             val_dataset = gdata.VOC_Val_Detection(
                 splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
-        val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
-        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
+        val_metric = VOC07MApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
+        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
     elif dataset.lower() == 'coco_pretrain':
         train_dataset = gdata.coco_pretrain_Detection(
             splits=[('_coco_20', 'train'+'_'+'8'+'_bboxwh')])
@@ -118,8 +123,19 @@ def get_dataset(dataset, args):
         else:
             val_dataset = gdata.VOC_Val_Detection(
                 splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
-        val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
-        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
+        val_metric = VOC07MApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
+        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
+    elif dataset.lower() == 'coco':
+        train_dataset = gdata.cocoDetection(root='/home/tutian/dataset/coco_to_voc/train', method='var')
+        # No changes below
+        if args.val_2012 == True:
+            val_dataset = gdata.VOC_Val_Detection(
+                splits=[('sbdche', 'val_2012_bboxwh')])
+        else:
+            val_dataset = gdata.VOC_Val_Detection(
+                splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
+        val_metric = VOC07MApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
+        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
     else:
         raise NotImplementedError('Dataset: {} not implemented.'.format(dataset))
     if args.num_samples < 0:
@@ -165,8 +181,8 @@ def validate(net, val_data, ctx, eval_metric,polygon_metric, args):
     # set nms threshold and topk constraint
     net.set_nms(nms_thresh=0.45, nms_topk=400)
     mx.nd.waitall()
-    net.hybridize()
-    for batch in val_data:
+    # net.hybridize()
+    for batch in tqdm(val_data):
         data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
         label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
         det_bboxes = []
@@ -271,7 +287,7 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
         tic = time.time()
         btic = time.time()
         mx.nd.waitall()
-        net.hybridize()
+        # net.hybridize()
         for i, batch in enumerate(train_data):
             batch_size = batch[0].shape[0]
             data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0)
@@ -288,9 +304,9 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
                 for ix, x in enumerate(data):
                     obj_loss, center_loss, scale_loss, coef_loss, cls_loss = net(x, gt_boxes[ix], *[ft[ix] for ft in fixed_targets])
                     if(args.only_bbox):
-                        sum_losses.append(obj_loss + center_loss + scale_loss +  cls_loss)
+                        sum_losses.append(obj_loss + center_loss + scale_loss + cls_loss)
                     else:
-                        sum_losses.append(obj_loss + center_loss + scale_loss + 0.5 * coef_loss  + cls_loss)
+                        sum_losses.append(obj_loss + center_loss + scale_loss + coef_loss  + cls_loss)
                         # coef_center_losses.append(coef_center_loss)
                         coef_losses.append(coef_loss)
                     obj_losses.append(obj_loss)
@@ -336,7 +352,7 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
         else:
             logger.info('[Epoch {}] Training cost: {:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}'.format(
             epoch, (time.time()-tic), name1, loss1, name2, loss2, name3, loss3, name5, loss5, name6, loss6))
-        if False and not (epoch) % args.val_interval:
+        if not (epoch) % args.val_interval:
             # consider reduce the frequency of validation to save time
             map_bbox, map_polygon = validate(net, val_data, ctx, eval_metric, polygon_metric,args)
             map_name, mean_ap = map_bbox
