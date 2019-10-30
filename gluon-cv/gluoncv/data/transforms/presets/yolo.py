@@ -238,4 +238,6 @@ class YOLO3DefaultValTransform(object):
 
         img = mx.nd.image.to_tensor(img)
         img = mx.nd.image.normalize(img, mean=self._mean, std=self._std)
-        return img, bbox.astype(img.dtype)
+        # return img, bbox.astype(img.dtype)
+        return img, bbox.astype(np.float64)
+

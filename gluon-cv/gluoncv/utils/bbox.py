@@ -156,13 +156,14 @@ def new_mask_iou(coefs, bboxs, bases, polygon_gts):
     # bboxsh = np.abs(bboxs_y2 - bboxs_y1)  # N,1
     # Tutian doesn't think it necessary to add np.abs() - May ask Haiyang
 
+    coefs[:,20:] = 0  # First 20 coefs
+
     # uniform
-    # coefs = np.clip(coefs, 0, 1)  # No difference
-    coefs = coefs * (x_max-x_min) + x_min
+    # coefs = coefs * (x_max-x_min) + x_min
 
     # var
-    # coefs = coefs * sqrt_var + x_mean
-    # print(np.unique(coefs))
+    coefs = coefs * sqrt_var + x_mean
+
     masks = np.dot(coefs, bases)
 
     # masks = (masks >= ((masks.max()+masks.min())/2)).astype(np.uint8)  # the threshold
@@ -189,7 +190,6 @@ def new_mask_iou(coefs, bboxs, bases, polygon_gts):
             board_gt = np.zeros((board_y, board_x))
 
             # Drawing the predicted mask to the board
-            # (w, h) need to be carefully checked. 
             # resized = cv.resize(mask_pd, (w, h), interpolation = cv.INTER_NEAREST)
             resized = cv.resize(mask_pd, (w, h))
 
@@ -207,7 +207,7 @@ def new_mask_iou(coefs, bboxs, bases, polygon_gts):
 
             iou = jaccard_score(board_pd.flatten(), board_gt.flatten())
 
-            ious[n][m] = iou
+            ious[n][m] = iou  # N is for predicted, M is for gts
 
     return ious
 

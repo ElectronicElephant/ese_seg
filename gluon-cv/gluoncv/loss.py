@@ -10,6 +10,12 @@ from mxnet.gluon.loss import Loss, _apply_weighting, _reshape_like
 __all__ = ['FocalLoss', 'SSDMultiBoxLoss', 'YOLOV3Loss',
            'MixSoftmaxCrossEntropyLoss', 'MixSoftmaxCrossEntropyOHEMLoss']
 
+x_mean = [-10372.72573, -65.62571687, 8.113603703, -4.129944152, -70.272901, 48.39311715, 13.54921555, -6.204910281, -82.93014464, -13.49012528, -1.377779259, -0.359250444, -9.937065122, 3.458047501, -0.637840469, 6.447263647, -0.159122537, -4.013595629, 0.368631004, -0.798153475, -0.675555162, -0.64375462, -1.876287186, -5.29987036, -3.081862721, -1.205230327, 1.611716191, -1.447915821, -1.008998948, 2.062282999, -0.366824452, -0.76531215, -5.657952825, -0.702878769, 4.139859116, 3.660853075, -4.365368841, -3.759996972, 0.10982376, -0.901409142, -0.914115701, -0.287375188, 0.673038067, -1.64012666, 0.983785635, 0.369574124, -0.080789953, 1.392399963, 1.066113083, -1.677959563]
+sqrt_var = [2803.685003, 2161.867545, 2087.585027, 1877.30127, 1616.864336, 1459.067858, 1325.125214, 1166.808235, 1078.785935, 954.0199264, 941.2122393, 877.5677226, 822.7808391, 767.6920133, 742.2590864, 709.1605303, 707.289721, 671.4039817, 625.9553238, 595.3469511, 586.0426203, 571.3110848, 560.1314211, 535.6616464, 534.0023283, 508.0441017, 489.9292073, 485.8909739, 474.3963334, 466.0055539, 449.4863225, 444.2908041, 437.5323292, 432.4269679, 409.8391652, 406.6126991, 400.0697815, 396.4458867, 391.1772833, 384.5596921, 377.9070695, 371.8721299, 366.0097442, 350.6612788, 350.3757641, 347.7540654, 343.1649469, 335.2165795, 332.2271304, 327.4941672]
+x_min = nd.array([-15482.42389, -6890.276516, -5538.785075, -5816.060271, -4558.030574, -6838.889213, -4845.916472, -4227.809116, -3826.952649, -3513.548843, -4829.720262, -3443.692333, -4599.026508, -3632.84294, -2830.503294, -2743.853048, -2821.758048, -2892.371713, -2783.273599, -2328.833622, -2287.968436, -2414.126732, -2567.267731, -2730.10522, -2273.68255, -2323.956728, -1884.060547, -2001.761208, -2243.889445, -2216.714357, -2104.139639, -2422.256762, -1817.853336, -2194.244812, -1718.128955, -1841.351373, -1889.84415, -1951.221188, -1691.402656, -1864.771442, -1685.0357, -1469.929736, -1399.324855, -1524.768124, -1847.479326, -1464.607373, -1438.142198, -1467.812184, -1486.837391, -1468.122325])
+x_max = nd.array([0, 6975.697248, 5453.263858, 5710.089781, 8459.724464, 5007.860651, 4914.459004, 4938.654403, 3904.488484, 4878.943755, 4372.214577, 3314.96113, 3958.25269, 3224.153406, 2789.40399, 3242.741783, 2877.455503, 2805.222196, 2610.172046, 2595.920655, 2711.131864, 2382.223149, 2464.276953, 2649.856643, 2540.557773, 3242.252329, 2196.179273, 2306.631054, 1858.970692, 2254.906552, 1963.849169, 2242.1793, 1795.529975, 2562.035894, 1748.565462, 1918.170148, 1555.71773, 2739.393537, 1662.911931, 1877.164972, 1832.516479, 1596.010903, 1562.090407, 1526.694717, 1544.801876, 1441.254865, 1445.42314, 1397.396689, 1378.251306, 1448.646948])
+
+
 class FocalLoss(gluon.loss.Loss):
     """Focal Loss for imbalanced classification.
     Focal loss was described in https://arxiv.org/abs/1708.02002
@@ -231,21 +237,35 @@ class YOLOV3Loss(gluon.loss.Loss):
             F.shape_array(objness_t).slice_axis(axis=0, begin=1, end=None).prod(), 'float32')
         weight_t = F.broadcast_mul(weight_t, objness_t)
 
+        # print('objness_t', objness_t.shape, nd.max(objness_t), nd.min(objness_t))  # -1, 0, 1
+        # print('weight_t', weight_t.shape, nd.max(weight_t), nd.min(weight_t))  # -0 to 2
+
         # Weights of coefs
         # coef_w_ones = F.ones_like(weight_t)
         # coef_weight_t = coef_w_ones
         # for _ in range(int((self._num_bases - 2) / 2)):
         #     coef_weight_t = F.Concat(coef_weight_t, coef_w_ones, dim=-1)
 
-        coef_w_ones = F.ones_like(objness)  # B * N * 1
-        coef_weight_t = F.ones_like(coef_w_ones) * 10  # B * N * 1
-        for i in range(self._num_bases - 1):
-            if 9 - i >= 1:
-                w = 9 - i
+        coef_weight_t = weight_t * 2.5  # coef 0 and 1 - 5, 5
+        for i in range(int((self._num_bases - 2) / 2)):
+            if 0 <= i <= 2:  # coef 2,3  4,5   6,7
+                w = 2.5 - 0.5 * i    #      4,4  3,3   2,2
             else:
                 w = 1
-            coef_weight_t = F.Concat(coef_weight_t, coef_w_ones * w, dim=-1)
-        # Then, it SHOULD BE B * N * 50
+            coef_weight_t = F.Concat(coef_weight_t, weight_t * w, dim=-1)
+
+        coef_weight_t = coef_weight_t * 1.5
+
+        # coef_w_ones = F.ones_like(objness)  # B * N * 1
+        # coef_w_ones = F.broadcast_mul(coef_w_ones, objness_t)  # Important!
+        # coef_weight_t = F.ones_like(coef_w_ones) * 2  # This is the weight for the first coef
+        # for i in range(self._num_bases - 1):  # Start from 1 but not 0
+        #     if 0 <= i <= 6:
+        #         w = 1 + (6 - i) * 0.5
+        #     else:
+        #         w = 1
+        #     coef_weight_t = F.Concat(coef_weight_t, coef_w_ones * w, dim=-1)
+        # # Then, it SHOULD BE B * N * 50
 
         hard_objness_t = F.where(objness_t > 0, F.ones_like(objness_t), objness_t)
         new_objness_mask = F.where(objness_t > 0, objness_t, objness_t >= 0)
@@ -257,14 +277,9 @@ class YOLOV3Loss(gluon.loss.Loss):
         # coef_center_loss = F.broadcast_mul(self._l1_loss(coef_center, coef_center_t, weight_t), denorm * 2)
 
         # coef_loss1 = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef)/2, coef_t, coef_weight_t), denorm * (self._num_bases))
-        # coef_loss2 = F.broadcast_mul(self._sigmoid_bce(coef, coef_t + 0.5, coef_weight_t), denorm * (self._num_bases))
-        # coef_loss = coef_loss1 + coef_loss2
-        
-        # New dataset - coeffs clipped to -1 and 1 based on min max - Failed
-        # coef_loss = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef), coef_t, coef_weight_t), denorm * (self._num_bases))
+
         # New dataset - normalized according to each coef's var or uniform
         coef_loss = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef[:,:,:20]), F.tanh(coef_t[:,:,:20]), coef_weight_t[:,:,:20]), denorm * (20))
-        # coef_loss = self._focal_loss(coef, coef_t, coef_weight_t)
         
         denorm_class = F.cast(
             F.shape_array(class_t).slice_axis(axis=0, begin=1, end=None).prod(), 'float32')
