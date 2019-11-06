@@ -31,7 +31,7 @@ class VOCPolygonMApMetric(mx.metric.EvalMetric):
         self.reset()
         self.iou_thresh = iou_thresh
         self.class_names = class_names
-        self.bases = np.load('/disk1/home/tutian/ese_seg/sbd/all_50_1.npy')
+        self.bases = np.load('/home/tutian/dataset/sbd/all_50_1.npy')
 
     def reset(self):
         """Clear the internal statistics to initial state."""

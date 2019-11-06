@@ -168,10 +168,10 @@ class YOLO3DefaultTrainTransform(object):
         img = timage.imresize(img, self._width, self._height, interp=interp)
         bbox = tbbox.resize(bbox, (w, h), (self._width, self._height))
 
-        # random horizontal flip
-        h, w, _ = img.shape
-        img, flips = timage.random_flip(img, px=0.5)
-        bbox = tbbox.flip(bbox, (w, h), flip_x=flips[0])
+        # random horizontal flip - Should be disabled when training coefs!
+        # h, w, _ = img.shape
+        # img, flips = timage.random_flip(img, px=0.5)
+        # bbox = tbbox.flip(bbox, (w, h), flip_x=flips[0])
 
         # to tensor
         img = mx.nd.image.to_tensor(img)
@@ -184,22 +184,13 @@ class YOLO3DefaultTrainTransform(object):
         gt_bboxes = mx.nd.array(bbox[np.newaxis, :, :4])
         # gt_coef_centers = mx.nd.array(bbox[np.newaxis, :, 4:6])
         gt_coef = mx.nd.array(bbox[np.newaxis, :, 4:4+self._num_bases])
-        
-        # Checking - Wrong!
-        # print('checking bbox in TrainTransform')
-        # print('bbox:', bbox.shape)  # bbox: 1, 58 - Wrong!
-        # print('checking gt_coef in TrainTransform')
-        # print("gt_coef:", gt_coef.shape, mx.nd.max(gt_coef), mx.nd.min(gt_coef))
 
         gt_ids = mx.nd.array(bbox[np.newaxis, :, 4+self._num_bases:4+self._num_bases+1])
         if self._mixup:
             gt_mixratio = mx.nd.array(bbox[np.newaxis, :, -1:])
         else:
             gt_mixratio = None
-        # print(f"gt_bboxes {gt_bboxes.shape}")
-        # print(f"gt_coef {gt_coef.shape}")
-        # print(f"gt_ids {gt_ids.shape}")
-        # print(f"gt_mixratio {gt_mixratio.shape if gt_mixratio else 'None'}")
+
         objectness, center_targets, scale_targets, coef_targets, weights, class_targets = self._target_generator(
             self._fake_x, self._feat_maps, self._anchors, self._offsets,
             gt_bboxes, gt_coef, gt_ids, gt_mixratio)

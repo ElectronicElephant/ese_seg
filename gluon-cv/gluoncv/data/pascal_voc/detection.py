@@ -46,7 +46,7 @@ class VOCDetection(VisionDataset):
                'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
                'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
 
-    def __init__(self, root='/disk1/home/tutian/ese_seg/data',
+    def __init__(self, root='/home/tutian/dataset',
                  # splits=((2007, 'trainval'), (2012, 'trainval')),
                  splits=((2012, 'train')),
                  transform=None, index_map=None, preload_label=True):
@@ -120,8 +120,6 @@ class VOCDetection(VisionDataset):
             ymin = (float(xml_box.find('ymin').text))
             xmax = (float(xml_box.find('xmax').text))
             ymax = (float(xml_box.find('ymax').text))
-            # coef_center_x = (float(xml_box.find('coef_center_x').text))
-            # coef_center_y = (float(xml_box.find('coef_center_y').text))
             xml_coef = obj.find('coef').text
             xml_coef = xml_coef.split()
             coef = [float(xml_coef[i]) for i in range(len(xml_coef))]
@@ -129,12 +127,6 @@ class VOCDetection(VisionDataset):
             obj_label_info.append(ymin)
             obj_label_info.append(xmax)
             obj_label_info.append(ymax)
-            # obj_label_info.append(coef_center_x)
-            # obj_label_info.append(coef_center_y)
-            # checked
-            # assert(max(coef) <= 0.5 and min(coef) >= -0.5)
-            # print('.', end='')
-            # checked. Here len(coef) == 50
             for i in range(len(coef)):
                 obj_label_info.append(coef[i])
             obj_label_info.append(cls_id)
@@ -273,20 +265,11 @@ class coco_pretrain_Detection(VisionDataset):
             ymin = (float(xml_box.find('ymin').text))
             xmax = (float(xml_box.find('xmax').text))
             ymax = (float(xml_box.find('ymax').text))
-            # coef_center_x = (float(xml_box.find('coef_center_x').text))
-            # coef_center_y = (float(xml_box.find('coef_center_y').text))
-            # xml_coef = obj.find('coef').text
-            # xml_coef = xml_coef.split()
-            # coef = [float(xml_coef[i]) for i in range(len(xml_coef))]
             obj_label_info.append(xmin)
             obj_label_info.append(ymin)
             obj_label_info.append(xmax)
             obj_label_info.append(ymax)
-            # obj_label_info.append(coef_center_x)
-            # obj_label_info.append(coef_center_y)
-            # for i in range(len(coef)):
-            #     obj_label_info.append(coef[i])
-            for i in range(50):
+            for _ in range(50):
                 obj_label_info.append(0)
             obj_label_info.append(cls_id)
             obj_label_info.append(difficult)
@@ -352,7 +335,7 @@ class VOC_Val_Detection(VisionDataset):
                'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
                'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
 
-    def __init__(self, root='/disk1/home/tutian/ese_seg/data/',
+    def __init__(self, root='/home/tutian/dataset/',
                  # ori    splits=((2007, 'trainval'), (2012, 'trainval')),
                  splits=((2012, 'train')),
                  transform=None, index_map=None, preload_label=True):
@@ -535,7 +518,6 @@ class cocoDetection(VisionDataset):
                  splits=None,
                  transform=None, index_map=None, preload_label=True, method=''):
         super(cocoDetection, self).__init__(root)
-        self.num_class = 80
         self._im_shapes = {}
         self._root = root
         assert root
@@ -548,8 +530,9 @@ class cocoDetection(VisionDataset):
         self._label_cache = self._preload_labels() if preload_label else None
 
     def __str__(self):
-        detail = ','.join([str(s[0]) + s[1] for s in self._splits])
-        return self.__class__.__name__ + '(' + detail + ')'
+        # detail = ','.join([str(s[0]) + s[1] for s in self._splits])
+        # return self.__class__.__name__ + '(' + detail + ')'
+        return self._root
 
     @property
     def classes(self):
@@ -565,7 +548,7 @@ class cocoDetection(VisionDataset):
 
     def __getitem__(self, idx):
         img_id = self._items[idx]
-        img_path = self._image_path.format(*img_id)
+        img_path = self._image_path.format(img_id[0], img_id[1].zfill(12))
         label = self._label_cache[idx] if self._label_cache else self._load_label(idx)
         img = mx.image.imread(img_path, 1)
         if self._transform is not None:
@@ -578,7 +561,8 @@ class cocoDetection(VisionDataset):
         root = self._root
         lf = os.path.join(root, 'images_ids.txt')
         with open(lf, 'r') as f:
-            ids += [(root, line.strip().zfill(12)) for line in f.readlines()]
+            # ids += [(root, line.strip().zfill(12)) for line in f.readlines()]
+            ids += [(root, line.strip()) for line in f.readlines()]
         return ids
 
     def _load_label(self, idx):

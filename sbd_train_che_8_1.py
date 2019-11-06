@@ -126,7 +126,7 @@ def get_dataset(dataset, args):
         val_metric = VOC07MApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
         val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
     elif dataset.lower() == 'coco':
-        train_dataset = gdata.cocoDetection(root='/home/tutian/dataset/coco_to_voc/train', method='var')
+        train_dataset = gdata.cocoDetection(root='/home/tutian/dataset/coco_to_voc/train', method='uniform')
         # No changes below
         if args.val_2012 == True:
             val_dataset = gdata.VOC_Val_Detection(
@@ -134,8 +134,8 @@ def get_dataset(dataset, args):
         else:
             val_dataset = gdata.VOC_Val_Detection(
                 splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
-        val_metric = VOC07MApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
-        val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
+        val_metric = None
+        val_polygon_metric = None
     else:
         raise NotImplementedError('Dataset: {} not implemented.'.format(dataset))
     if args.num_samples < 0:
@@ -352,7 +352,7 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
         else:
             logger.info('[Epoch {}] Training cost: {:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}, {}={:.3f}'.format(
             epoch, (time.time()-tic), name1, loss1, name2, loss2, name3, loss3, name5, loss5, name6, loss6))
-        if not (epoch) % args.val_interval:
+        if False and not (epoch) % args.val_interval:
             # consider reduce the frequency of validation to save time
             map_bbox, map_polygon = validate(net, val_data, ctx, eval_metric, polygon_metric,args)
             map_name, mean_ap = map_bbox
@@ -388,8 +388,10 @@ if __name__ == '__main__':
         net = get_model(net_name, pretrained_base=True)
         async_net = net
     if args.resume.strip():
-        net.load_parameters(args.resume.strip())
-        async_net.load_parameters(args.resume.strip())
+        net.load_parameters(args.resume.strip(), ignore_extra=True, allow_missing=True)
+        async_net.load_parameters(args.resume.strip(), ignore_extra=True, allow_missing=True)
+        net.yolo_outputsV4.initialize()  # Not initialized
+        async_net.yolo_outputsV4.initialize()
     else:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -398,8 +400,6 @@ if __name__ == '__main__':
     print("model loaded")
     # training data
     train_dataset, val_dataset, eval_metric, polygon_metric = get_dataset(args.dataset, args)
-    # train_data, val_data = get_dataloader(
-    #     async_net, train_dataset, val_dataset, args.data_shape, args.batch_size, args.num_workers, args)
     print("dataset done")
     train_data, val_data = get_dataloader(
         async_net, train_dataset, val_dataset, args.data_shape, args.batch_size, args.num_workers, args)

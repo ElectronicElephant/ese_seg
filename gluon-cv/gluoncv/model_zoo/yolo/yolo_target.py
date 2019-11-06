@@ -247,6 +247,7 @@ class YOLOV3TargetMerger(gluon.HybridBlock):
         self._num_class = num_class
         self._dynamic_target = YOLOV3DynamicTargetGeneratorSimple(num_class, ignore_iou_thresh, num_bases)
         self._label_smooth = False
+        print(f'num_classes in YOLOV3TargetMerger: {num_class}')
         self._num_bases = num_bases
 
     def hybrid_forward(self, F, box_preds, gt_boxes, obj_t, centers_t, scales_t, coef_t, weights_t, clas_t):

@@ -290,7 +290,7 @@ def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
                     if(args.only_bbox):
                         sum_losses.append(obj_loss + center_loss + scale_loss +  cls_loss)
                     else:
-                        sum_losses.append(obj_loss + center_loss + scale_loss + 0.5 * coef_loss  + cls_loss)
+                        sum_losses.append(obj_loss + center_loss + scale_loss + coef_loss  + cls_loss)
                         # coef_center_losses.append(coef_center_loss)
                         coef_losses.append(coef_loss)
                     obj_losses.append(obj_loss)

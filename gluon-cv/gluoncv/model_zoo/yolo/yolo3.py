@@ -39,7 +39,7 @@ def _upsample(x, stride=2):
     return x.repeat(axis=-1, repeats=stride).repeat(axis=-2, repeats=stride)
 
 
-class YOLOOutputV3(gluon.HybridBlock):
+class YOLOOutputV4(gluon.HybridBlock):
     """YOLO output layer V3.
     Parameters
     ----------
@@ -59,7 +59,7 @@ class YOLOOutputV3(gluon.HybridBlock):
     """
     def __init__(self, index, num_class, anchors, stride,
                  alloc_size=(128, 128), num_bases=50, **kwargs):
-        super(YOLOOutputV3, self).__init__(**kwargs)
+        super(YOLOOutputV4, self).__init__(**kwargs)
         anchors = np.array(anchors).astype('float32')
         self._classes = num_class
         self._num_pred = 1 + 4 + num_class + num_bases  # 1 objness + 4 box + num_class + (pre_center + coef)
@@ -162,10 +162,6 @@ class YOLOOutputV3(gluon.HybridBlock):
         # begin and end below need to be minused by 2
         raw_coefs = pred.slice_axis(axis=-1, begin=4, end=4 + self._num_bases)
 
-        # #checking
-        # print('checking raw_coefs in YOLOOutputV3')
-        # print("raw_coefs:", raw_coefs.shape, mx.nd.max(raw_coefs), mx.nd.min(raw_coefs))
-
         objness = pred.slice_axis(axis=-1, begin=4 + self._num_bases, end=4 + self._num_bases + 1)
         class_pred = pred.slice_axis(axis=-1, begin=4 + self._num_bases + 1, end=None)
 
@@ -177,11 +173,7 @@ class YOLOOutputV3(gluon.HybridBlock):
         # recover bbox and shape
         box_centers = F.broadcast_add(F.sigmoid(raw_box_centers), offsets) * self._stride
         box_scales = F.broadcast_mul(F.exp(raw_box_scales), anchors)
-        # coef_centers = F.broadcast_mul(F.exp(raw_coef_centers), anchors)
-        # w_coefs = raw_coefs.slice_axis(axis=-1, begin=0 , end=1)  # the first coef of chebyshev
-        # coefs_other = raw_coefs.slice_axis(axis=-1, begin=0 , end=self._num_bases)
-        # w_coefs =F.broadcast_add(w_coefs, F.ones_like(w_coefs)*0.263289)  # sbd max_w, the first che coef is special, its distribution is [-0.5, 0.5], we should add it to [0, 1]
-        # coefs = F.concat(w_coefs, coefs_other, dim=-1)
+
         coefs = raw_coefs.slice_axis(axis=-1, begin=0 , end=self._num_bases)
         confidence = F.sigmoid(objness)
         class_score = F.broadcast_mul(F.sigmoid(class_pred), confidence)
@@ -295,6 +287,10 @@ class YOLOV3(gluon.HybridBlock):
                  ignore_iou_thresh=0.7, norm_layer=BatchNorm, norm_kwargs=None,num_bases=50, **kwargs):
         super(YOLOV3, self).__init__(**kwargs)
         self._classes = classes
+
+        print(len(classes))
+        print(classes)
+
         self.nms_thresh = nms_thresh
         self.nms_topk = nms_topk
         self.post_nms = post_nms
@@ -313,7 +309,7 @@ class YOLOV3(gluon.HybridBlock):
             self.stages = nn.HybridSequential()
             self.transitions = nn.HybridSequential()
             self.yolo_blocks = nn.HybridSequential()
-            self.yolo_outputs = nn.HybridSequential()
+            self.yolo_outputsV4 = nn.HybridSequential()
             # note that anchors and strides should be used in reverse order
             for i, stage, channel, anchor, stride in zip(
                     range(len(stages)), stages, channels, anchors[::-1], strides[::-1]):
@@ -321,8 +317,8 @@ class YOLOV3(gluon.HybridBlock):
                 block = YOLODetectionBlockV3(
                     channel, norm_layer=norm_layer, norm_kwargs=norm_kwargs)
                 self.yolo_blocks.add(block)
-                output = YOLOOutputV3(i, len(classes), anchor, stride, alloc_size=alloc_size, num_bases = self._num_bases)
-                self.yolo_outputs.add(output)
+                output = YOLOOutputV4(i, len(classes), anchor, stride, alloc_size=alloc_size, num_bases = self._num_bases)
+                self.yolo_outputsV4.add(output)
                 if i > 0:
                     self.transitions.add(_conv2d(channel, 1, 0, 1,
                                                  norm_layer=norm_layer, norm_kwargs=norm_kwargs))
@@ -377,12 +373,12 @@ class YOLOV3(gluon.HybridBlock):
         all_feat_maps = []
         all_detections = []
         routes = []
-        for stage, block, output in zip(self.stages, self.yolo_blocks, self.yolo_outputs):
+        for stage, block, output in zip(self.stages, self.yolo_blocks, self.yolo_outputsV4):
             x = stage(x)
             routes.append(x)
 
         # the YOLO output layers are used in reverse order, i.e., from very deep layers to shallow
-        for i, block, output in zip(range(len(routes)), self.yolo_blocks, self.yolo_outputs):
+        for i, block, output in zip(range(len(routes)), self.yolo_blocks, self.yolo_outputsV4):
             x, tip = block(x)
             if autograd.is_training():
                 dets, box_centers, box_scales, coef, objness, class_pred, anchors, offsets = output(tip)
@@ -706,7 +702,7 @@ class TinyYOLOV3(gluon.HybridBlock):
                 block = YOLODetectionBlockV3(
                     channel, norm_layer=norm_layer, norm_kwargs=norm_kwargs)
                 self.yolo_blocks.add(block)
-                output = YOLOOutputV3(i, len(classes), anchor, stride, alloc_size=alloc_size, deg=self._deg)
+                output = YOLOOutputV4(i, len(classes), anchor, stride, alloc_size=alloc_size, deg=self._deg)
                 self.yolo_outputs.add(output)
                 if i > 0:
                     self.transitions.add(_conv2d(channel, 1, 0, 1,
