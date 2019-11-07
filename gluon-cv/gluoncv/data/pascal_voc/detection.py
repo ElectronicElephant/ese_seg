@@ -159,6 +159,7 @@ class VOCDetection(VisionDataset):
         logging.debug("Preloading %s labels into memory...", str(self))
         return [self._load_label(idx) for idx in range(len(self))]
 
+
 class coco_pretrain_Detection(VisionDataset):
     """coco pretrain detection Dataset.
     The pretrain Dataset of Our Model, only train bbox (has the Coefficients label, not Polygon Points label)
@@ -512,19 +513,17 @@ class cocoDetection(VisionDataset):
                 'scissors', 'teddy bear', 'hair drier', 'toothbrush')
     
     # The cat_id in label is already for training. i.e., 1 to 80
-
-    def __init__(self, root='',
-                 # splits=((2007, 'trainval'), (2012, 'trainval')),
-                 splits=None,
-                 transform=None, index_map=None, preload_label=True, method=''):
+    # There is no splits in coco
+    def __init__(self, root='', transform=None, index_map=None, preload_label=True, subfolder=''):
         super(cocoDetection, self).__init__(root)
         self._im_shapes = {}
         self._root = root
         assert root
         self._transform = transform
-        self._splits = splits
-        self._items = self._load_items(splits)
-        self._anno_path = os.path.join('{}', './bases_50_xml_each_'+method, '{}.xml')
+        self._items = self._load_items()
+        if subfolder == '':
+            print("Subfolder not defined!")
+        self._anno_path = os.path.join('{}', subfolder, '{}.xml')
         self._image_path = os.path.join('{}', 'img', '{}.jpg')
         self.index_map = index_map or dict(zip(self.classes, range(self.num_class)))
         self._label_cache = self._preload_labels() if preload_label else None
@@ -555,13 +554,12 @@ class cocoDetection(VisionDataset):
             return self._transform(img, label)
         return img, label
 
-    def _load_items(self, splits):
-        """Load individual image indices from splits."""
+    def _load_items(self):
+        """Load individual image names from txt"""
         ids = []
         root = self._root
         lf = os.path.join(root, 'images_ids.txt')
         with open(lf, 'r') as f:
-            # ids += [(root, line.strip().zfill(12)) for line in f.readlines()]
             ids += [(root, line.strip()) for line in f.readlines()]
         return ids
 
@@ -589,19 +587,21 @@ class cocoDetection(VisionDataset):
             ymin = (float(xml_box.find('ymin').text))
             xmax = (float(xml_box.find('xmax').text))
             ymax = (float(xml_box.find('ymax').text))
-            xml_coef = obj.find('coef').text
-            xml_coef = xml_coef.split()
-            coef = [float(xml_coef[i]) for i in range(len(xml_coef))]
-            obj_label_info.append(xmin)
-            obj_label_info.append(ymin)
-            obj_label_info.append(xmax)
-            obj_label_info.append(ymax)
-            for i in range(len(coef)):
-                obj_label_info.append(coef[i])
-            obj_label_info.append(cls_id)
-            obj_label_info.append(difficult)
-            obj_label_info.append(width)
-            obj_label_info.append(height)
+            xml_coef = obj.find('coef').text.split()
+            # coef = [float(xml_coef[i]) for i in range(len(xml_coef))]
+            coef = [float(i) for i in xml_coef]
+            obj_label_info.append(xmin) # 0
+            obj_label_info.append(ymin) # 1
+            obj_label_info.append(xmax) # 2
+            obj_label_info.append(ymax) # 3
+            # for i in range(len(coef)):
+            #     obj_label_info.append(coef[i])
+            obj_label_info += coef  # 4 - 50+4
+            obj_label_info.append(cls_id)  # 50+4 - 50+5
+            obj_label_info.append(difficult) # 50+5 - 50+6
+            obj_label_info.append(width)  # 50+6 - 50+7
+            obj_label_info.append(height) # 50+7 - 50+8
+            obj_label_info.append(int(img_id[1]))  # 50+8 - 50+9
             try:
                 self._validate_label(xmin, ymin, xmax, ymax, width, height)
             except AssertionError as e:

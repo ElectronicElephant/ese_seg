@@ -19,10 +19,11 @@ from gluoncv.data.transforms.presets.yolo import YOLO3DefaultValTransform
 from gluoncv.data.dataloader import RandomTransformDataLoader
 from gluoncv.utils.metrics.voc_detection import VOC07MApMetric
 from gluoncv.utils.metrics.coco_detection import COCODetectionMetric
-from gluoncv.utils.metrics.voc_polygon_detection import VOC07PolygonMApMetric
+from gluoncv.utils.metrics.voc_polygon_detection import VOC07PolygonMApMetric, New07PolygonMApMetric
 from gluoncv.utils import LRScheduler
 
 from tqdm import tqdm
+from sbd_eval_che_8 import validate
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train YOLO networks with random input shape.')
@@ -126,15 +127,10 @@ def get_dataset(dataset, args):
         val_metric = VOC07MApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
         val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.7, class_names=val_dataset.classes)
     elif dataset.lower() == 'coco':
-        train_dataset = gdata.cocoDetection(root='/home/tutian/dataset/coco_to_voc/train', method='uniform')
-        # No changes below
-        if args.val_2012 == True:
-            val_dataset = gdata.VOC_Val_Detection(
-                splits=[('sbdche', 'val_2012_bboxwh')])
-        else:
-            val_dataset = gdata.VOC_Val_Detection(
-                splits=[('sbdche', 'val'+'_'+'8'+'_bboxwh')])
-        val_metric = None
+        train_dataset = gdata.cocoDetection(root='/home/tutian/dataset/coco_to_voc/train', subfolder='./bases_50_xml_each_'+'var')
+        val_dataset = gdata.cocoDetection(root='/home/tutian/dataset/coco_to_voc/val', subfolder='./bases_50_xml_'+'raw_coef')
+        val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
+        # val_polygon_metric = New07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes, root='/home/tutian/dataset/coco_to_voc/val/')
         val_polygon_metric = None
     else:
         raise NotImplementedError('Dataset: {} not implemented.'.format(dataset))
@@ -152,7 +148,7 @@ def get_dataloader(net, train_dataset, val_dataset, data_shape, batch_size, num_
     if args.no_random_shape:
         # True
         train_loader = gluon.data.DataLoader(
-            train_dataset.transform(YOLO3DefaultTrainTransform(width, height, net, mixup=args.mixup, num_bases = args.num_bases)),
+            train_dataset.transform(YOLO3DefaultTrainTransform(width, height, net, mixup=args.mixup, num_bases=args.num_bases)),
             batch_size, True, batchify_fn=batchify_fn, last_batch='rollover', num_workers=num_workers)
     else:
         transform_fns = [YOLO3DefaultTrainTransform(x * 32, x * 32, net, mixup=args.mixup, num_bases = args.num_bases) for x in range(10, 20)]
@@ -161,7 +157,7 @@ def get_dataloader(net, train_dataset, val_dataset, data_shape, batch_size, num_
             shuffle=True, batchify_fn=batchify_fn, num_workers=num_workers)
     val_batchify_fn = Tuple(Stack(), Pad(pad_val=-1))
     val_loader = gluon.data.DataLoader(
-        val_dataset.transform(YOLO3DefaultValTransform(width, height, args.num_bases)),
+        val_dataset.transform(YOLO3DefaultValTransform(width, height, args.num_bases, dataset='coco')),
         batch_size, False, batchify_fn=val_batchify_fn, last_batch='keep', num_workers=num_workers)
     return train_loader, val_loader
 
@@ -175,51 +171,6 @@ def save_params(net, best_map, current_map, epoch, save_interval, prefix):
     if save_interval and epoch % save_interval == 0:
         net.save_parameters('{:s}_{:04d}_{:.4f}.params'.format(prefix, epoch, current_map))
 
-def validate(net, val_data, ctx, eval_metric,polygon_metric, args):
-    """Test on validation dataset."""
-    eval_metric.reset()
-    # set nms threshold and topk constraint
-    net.set_nms(nms_thresh=0.45, nms_topk=400)
-    mx.nd.waitall()
-    # net.hybridize()
-    for batch in tqdm(val_data):
-        data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
-        label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
-        det_bboxes = []
-        det_ids = []
-        det_scores = []
-        # det_coef_centers = []
-        det_coefs = []
-        # det_r_all = []
-        gt_bboxes = []
-        gt_points_xs = []
-        gt_points_ys = []
-        gt_ids = []
-        gt_difficults = []
-        gt_widths = []
-        gt_heights = []
-        for x, y in zip(data, label):
-            # get prediction results
-            ids, scores, bboxes, coef = net(x)
-            det_ids.append(ids)
-            det_scores.append(scores)
-            # det_coef_centers.append(absolute_coef_centers)
-            det_coefs.append(coef)
-            # clip to image size
-            det_bboxes.append(bboxes.clip(0, batch[0].shape[2]))
-            # split ground truths
-            gt_ids.append(y.slice_axis(axis=-1, begin=4 + 720, end=5 + 720))
-            gt_bboxes.append(y.slice_axis(axis=-1, begin=0, end=4))
-            gt_points_xs.append(y.slice_axis(axis=-1, begin=4, end=4 + 360))
-            gt_points_ys.append(y.slice_axis(axis=-1, begin=4 + 360, end=4 + 720))
-            gt_difficults.append(y.slice_axis(axis=-1, begin=5 + 720, end=6 + 720) if y.shape[-1] > 5 else None)
-            gt_widths.append(y.slice_axis(axis=-1, begin=6 + 720, end=7 + 720))
-            gt_heights.append(y.slice_axis(axis=-1, begin=7 + 720, end=8 + 720))
-        # update metric
-        eval_metric.update(det_bboxes, det_ids, det_scores, gt_bboxes, gt_ids, gt_difficults)
-        polygon_metric.update(det_bboxes, det_coefs, det_ids, det_scores, gt_bboxes, gt_points_xs,
-                              gt_points_ys, gt_ids, gt_widths, gt_heights, gt_difficults)
-    return eval_metric.get(), polygon_metric.get()
 
 def train(net, train_data, val_data, eval_metric, polygon_metric, ctx, args):
     """Training pipeline"""

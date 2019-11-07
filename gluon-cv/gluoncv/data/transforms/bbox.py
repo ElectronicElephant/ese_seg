@@ -136,7 +136,7 @@ def resize(bbox, in_size, out_size):
     
     return bbox
 
-def val_resize(bbox, in_size, out_size, num_bases):
+def val_resize(bbox, in_size, out_size, num_bases, dataset='voc'):
     """In val dataset we has 360 polygon points. Resize bouding boxes and polygon points according to image resize operation.
        Val Dataset
 
@@ -174,10 +174,11 @@ def val_resize(bbox, in_size, out_size, num_bases):
     bbox[:, 0] = x_scale * bbox[:, 0]
     bbox[:, 2] = x_scale * bbox[:, 2]
     
-    # resize polygon - NO USE
-    for i in range(360):
-        bbox[:, 4+360+i] = y_scale * bbox[:, 4+360+i]
-        bbox[:, 4+i] = x_scale * bbox[:, 4+i]
+    # resize polygon
+    if dataset=='voc':
+        for i in range(360):
+            bbox[:, 4+360+i] = y_scale * bbox[:, 4+360+i]
+            bbox[:, 4+i] = x_scale * bbox[:, 4+i]
     
     return bbox
 

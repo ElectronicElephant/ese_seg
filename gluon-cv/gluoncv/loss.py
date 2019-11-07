@@ -257,8 +257,8 @@ class YOLOV3Loss(gluon.loss.Loss):
         center_loss = F.broadcast_mul(self._sigmoid_ce(box_centers, center_t, weight_t), denorm * 2)
         scale_loss = F.broadcast_mul(self._l1_loss(box_scales, scale_t, weight_t), denorm * 2)
         # New dataset - normalized according to each coef's var or uniform
-        # coef_loss = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef), F.tanh(coef_t), coef_weight_t), denorm * (self._num_bases))
-        coef_loss = F.broadcast_mul(self._smoothl1_loss(coef, coef_t, coef_weight_t), denorm * (self._num_bases))
+        coef_loss = F.broadcast_mul(self._smoothl1_loss(F.tanh(coef), F.tanh(coef_t), coef_weight_t), denorm * (self._num_bases))
+        # coef_loss = F.broadcast_mul(self._smoothl1_loss(coef, coef_t, coef_weight_t), denorm * (self._num_bases))
         
         denorm_class = F.cast(
             F.shape_array(class_t).slice_axis(axis=0, begin=1, end=None).prod(), 'float32')
