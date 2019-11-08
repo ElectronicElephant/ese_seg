@@ -65,7 +65,7 @@ def save_xml(img_name, cat_list, pointsList, save_dir, width, height, channel):
         bbox_w, bbox_h = points[5], points[6]
         bbox_xmin, bbox_ymin = bbox_center_x - bbox_w / 2.0, bbox_center_y - bbox_h / 2.0
         bbox_xmax, bbox_ymax = bbox_center_x + bbox_w / 2.0, bbox_center_y + bbox_h / 2.0
-        coef_center_x, coef_center_y = points[7], points[8]
+        inst_id = points[7]
 
         coef = points[9:]
         coef_str = str(points[9:])
@@ -84,19 +84,17 @@ def save_xml(img_name, cat_list, pointsList, save_dir, width, height, channel):
         node_xmax.text = '%s' % bbox_xmax
         node_ymax = SubElement(node_bndbox, 'ymax')
         node_ymax.text = '%s' % bbox_ymax
-        # node_coef_center_x = SubElement(node_bndbox, 'coef_center_x')
-        # node_coef_center_x.text = '%s' % coef_center_x
-        # node_coef_center_y = SubElement(node_bndbox, 'coef_center_y')
-        # node_coef_center_y.text = '%s' % coef_center_y
         node_polygon = SubElement(node_object, 'coef')
         node_polygon.text = '%s' % coef_str
+        node_inst_id = SubElement(node_object, 'inst_id')
+        node_inst_id.text = '%s' % inst_id
         count += 1
         has_objects = True
     xml = tostring(node_root, pretty_print=True)
     dom = parseString(xml)
 
     if has_objects:
-        with open(os.path.join(root, 'coef_8_success.txt'), 'a') as f:
+        with open(os.path.join(root, 'coef_8_success_val_with_inst_id.txt'), 'a') as f:
             f.write(img_name + '\n')
     save_xml = os.path.join(save_dir, img_name + '.xml')
     with open(save_xml, 'wb') as f:
@@ -153,9 +151,8 @@ def runOneImage(img_path):
         objects_info['label'] = COCO_LABEL_MAP[cat_id]  # Convert from 1-90 to 1-80
         objects_info['bbox'] = (y, x, h, w)  # TO BE CAREFUL
         objects_info['img_wh'] = (img_width, img_height)
-        # objects_info['center'] = (center_x,center_y)
-        # No need for center at all
         objects_info['coeffs'] = coeffs
+        objects_info['inst_id'] = instance_id
         img_info_dict.append(objects_info)
 
     info_txt = np.zeros((len(img_info_dict), 9 + n_components))
@@ -164,8 +161,8 @@ def runOneImage(img_path):
         info_txt[i][1:3] = img_info_dict[i]['img_wh']
         info_txt[i][3:7] = img_info_dict[i]['bbox']
         # info_txt[i][7:9] = img_info_dict[i]['center']
+        info_txt[i][7] = img_info_dict[i]['inst_id']
         info_txt[i][9:] = img_info_dict[i]['coeffs']
-    # np.savetxt(os.path.join(label_dir_txt, img_name[:-4] + '.txt'), info_txt)
     img_info = np.reshape(info_txt, (-1, 9 + n_components))
     cat_list = []  # Cat list in one img
     for i in range(len(img_info)):
