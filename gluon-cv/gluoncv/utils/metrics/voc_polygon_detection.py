@@ -352,7 +352,9 @@ class NewPolygonMApMetric(mx.metric.EvalMetric):
         self.reset()
         self.iou_thresh = iou_thresh
         self.class_names = class_names
-        self.bases = np.load('/home/tutian/dataset/sbd/all_50_1.npy')
+        bases_root = '/home/tutian/dataset/coco_to_voc/coco_all_50_1.npy'
+        print(f"Metric is loading {bases_root}")
+        self.bases = np.load(bases_root)
         self.root = root
 
     def reset(self):
@@ -390,7 +392,7 @@ class NewPolygonMApMetric(mx.metric.EvalMetric):
             return (names, values)
 
     def update(self, pred_bboxes, pred_coefs, pred_labels, pred_scores,
-               gt_bboxes, gt_labels, widths, heights, gt_difficults=None, gt_coefs=None, gt_imgids=None):
+               gt_bboxes, gt_labels, widths, heights, gt_difficults=None, gt_coefs=None, gt_imgids=None, gt_inst_ids=None):
         """Update internal buffer with latest prediction and gt pairs.
 
         Parameters
@@ -434,11 +436,13 @@ class NewPolygonMApMetric(mx.metric.EvalMetric):
             gt_coefs = [None for _ in as_numpy(gt_labels)]
         if gt_imgids is None:  # For analysis
             gt_imgids = [None for _ in as_numpy(gt_labels)]
+        if gt_inst_ids is None:  # For analysis
+            gt_inst_ids = [None for _ in as_numpy(gt_labels)]
 
-        for pred_bbox, pred_coef, pred_label, pred_score, gt_bbox, gt_label, gt_difficult, width_array, height_array, gt_coef, gt_imgid  in zip(
+        for pred_bbox, pred_coef, pred_label, pred_score, gt_bbox, gt_label, gt_difficult, width_array, height_array, gt_coef, gt_imgid, gt_inst_id  in zip(
                 *[as_numpy(x) for x in [pred_bboxes, pred_coefs, pred_labels, pred_scores,
                                         gt_bboxes, gt_labels, gt_difficults, widths, heights,
-                                        gt_coefs, gt_imgids]]):
+                                        gt_coefs, gt_imgids, gt_inst_ids]]):
             # strip padding -1 for pred and gt
             valid_pred = np.where(pred_label.flat >= 0)[0]
             pred_bbox = pred_bbox[valid_pred, :]
@@ -451,17 +455,20 @@ class NewPolygonMApMetric(mx.metric.EvalMetric):
             gt_coef = gt_coef[valid_gt, :]
             gt_imgid = gt_imgid[valid_gt, :]
             assert(np.unique(gt_imgid).shape[0] == 1)
+            # print(gt_inst_id)
+            gt_inst_id = gt_inst_id[valid_gt, :]
+            # print(gt_inst_id)
 
-            # Load gt mask
+            # Load gt mask - original size!
             file_name = str(int(np.unique(gt_imgid))) + '.png'
-            instance_mask = np.array(Image.open(os.path.join(self.root, 'instance_labels', file_name)).resize((416, 416), Image.NEAREST))
+            instance_mask = np.array(Image.open(os.path.join(self.root, 'instance_labels', file_name)))
             instance_ids = np.unique(instance_mask)
             M = 0
             for inst_id in instance_ids:
                 if inst_id == 0 or inst_id == 255:
                     continue
                 M += 1
-            gt_masks = np.zeros((M, 416, 416))
+            gt_masks = np.zeros((M, instance_mask.shape[0], instance_mask.shape[1]))
             M = 0
             for instance_id in instance_ids:
                 if instance_id == 0 or instance_id == 255:  # background or edge, pass
@@ -471,6 +478,7 @@ class NewPolygonMApMetric(mx.metric.EvalMetric):
                 gt_masks[M] = (instance_mask == temp)
                 M += 1
             # gt mask end
+            # print(M)
 
             gt_label = gt_label.flat[valid_gt].astype(int)
             if gt_difficult is None:
@@ -481,26 +489,18 @@ class NewPolygonMApMetric(mx.metric.EvalMetric):
             for l in np.unique(np.concatenate((pred_label, gt_label)).astype(int)):
                 pred_mask_l = pred_label == l
                 pred_bbox_l = pred_bbox[pred_mask_l]
-                # pred_center_l = pred_center[pred_mask_l]
                 pred_coef_l = pred_coef[pred_mask_l]
                 pred_score_l = pred_score[pred_mask_l]
                 # sort by score
                 order = pred_score_l.argsort()[::-1]
                 pred_bbox_l = pred_bbox_l[order]
-                # pred_center_l = pred_center_l[order]
                 pred_coef_l = pred_coef_l[order]
                 pred_score_l = pred_score_l[order]
 
                 gt_mask_l = gt_label == l
                 gt_bbox_l = gt_bbox[gt_mask_l]
                 # gt_coef_l = gt_coef[gt_mask_l]
-                try:
-                    gt_masks_l = gt_masks[gt_mask_l]  # gt_masks and gt_mask are DIFFERENT!
-                    # TODO IndexError: boolean index did not match indexed array along dimension 0; dimension is 15 but corresponding boolean dimension is 16
-                    # TODO BUG @ 12%
-                except IndexError:
-                    print('IndexError @', file_name)
-                    continue
+                gt_masks_l = gt_masks[gt_mask_l]  # gt_masks and gt_mask are DIFFERENT!
                 gt_difficult_l = gt_difficult[gt_mask_l]
 
                 self._n_pos[l] += np.logical_not(gt_difficult_l).sum()

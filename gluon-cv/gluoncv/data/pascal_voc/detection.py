@@ -587,6 +587,7 @@ class cocoDetection(VisionDataset):
             ymin = (float(xml_box.find('ymin').text))
             xmax = (float(xml_box.find('xmax').text))
             ymax = (float(xml_box.find('ymax').text))
+            inst_id = (float(obj.find('inst_id').text))
             xml_coef = obj.find('coef').text.split()
             # coef = [float(xml_coef[i]) for i in range(len(xml_coef))]
             coef = [float(i) for i in xml_coef]
@@ -602,6 +603,7 @@ class cocoDetection(VisionDataset):
             obj_label_info.append(width)  # 50+6 - 50+7
             obj_label_info.append(height) # 50+7 - 50+8
             obj_label_info.append(int(img_id[1]))  # 50+8 - 50+9
+            obj_label_info.append(int(inst_id)) # 50+9 - 50+10
             try:
                 self._validate_label(xmin, ymin, xmax, ymax, width, height)
             except AssertionError as e:

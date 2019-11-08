@@ -298,16 +298,18 @@ def new_iou(coefs, bases, bboxs, gt_masks):
         polygons in `pred coef` and gt polygon points`.
     """
 
+    _, gt_h, gt_w = gt_masks.shape
+
     # Here the bbox stands for the predicted bbox
-    bboxs_x1 = bboxs[:, 0].reshape(-1, 1)  # N,1
-    bboxs_x2 = bboxs[:, 2].reshape(-1, 1)  # N,1
-    bboxs_y1 = bboxs[:, 1].reshape(-1, 1)  # N,1
-    bboxs_y2 = bboxs[:, 3].reshape(-1, 1)  # N,1
+    bboxs_x1 = bboxs[:, 0].reshape(-1, 1) * gt_w / 416.0 # N,1
+    bboxs_x2 = bboxs[:, 2].reshape(-1, 1) * gt_w / 416.0  # N,1
+    bboxs_y1 = bboxs[:, 1].reshape(-1, 1) * gt_h / 416.0  # N,1
+    bboxs_y2 = bboxs[:, 3].reshape(-1, 1) * gt_h / 416.0  # N,1
 
     # coefs[:,20:] = 0  # First 20 coefs
 
-    coefs = coefs * (x_max-x_min) + x_min  # uniform
-    # coefs = coefs * sqrt_var + x_mean      # var
+    # coefs = coefs * (x_max-x_min) + x_min  # uniform
+    coefs = coefs * sqrt_var + x_mean      # var
 
     masks = np.dot(coefs, bases)
     masks_pred = masks.reshape((-1, 64, 64))
@@ -320,17 +322,20 @@ def new_iou(coefs, bases, bboxs, gt_masks):
         for m in range(M):
             x1, x2, y1, y2 = int(bboxs_x1[n]), int(bboxs_x2[n]), int(bboxs_y1[n]), int(bboxs_y2[n])
             w, h = x2 - x1, y2 - y1
-            assert(w >= 0 and h >=0 and x2 <= 416 and y2 <= 416)
-            board_pd = np.zeros((416, 416))
+            board_pd = np.zeros((gt_h, gt_w))
 
             # First resize then binarize
             resized = cv.resize(mask_pd, (w, h))
-            resized = (resized >= ((resized.max()+resized.min())/2))  # the threshold
+            resized = (resized >= ((mask_pd.max()+mask_pd.min())/2))  # the threshold
             board_pd[y1:y2, x1:x2] = np.array(resized)
 
             iou = cal_iou(board_pd.flatten(), gt_masks[m].flatten())
-
             ious[n][m] = iou  # N is for predicted, M is for gts
+
+            # for debug
+            # fname = time()
+            # Image.fromarray(np.array(board_pd.astype(np.bool) * 255, dtype=np.uint8)).save(f'debug/{fname}_pd.png')
+            # Image.fromarray(np.array(gt_masks[m].astype(np.bool) * 255, dtype=np.uint8)).save(f'debug/{fname}_gt.png')
 
     return ious
 

@@ -4,8 +4,9 @@
 /benchmark_RELEASE
 /gluon-cv_bak/*
 /archived/*
+/debug/*
 
 *.params
 *.log
 *.jpg
-
+*.png

@@ -182,7 +182,6 @@ class YOLO3DefaultTrainTransform(object):
 
         # generate training target so cpu workers can help reduce the workload on gpu
         gt_bboxes = mx.nd.array(bbox[np.newaxis, :, :4])
-        # gt_coef_centers = mx.nd.array(bbox[np.newaxis, :, 4:6])
         gt_coef = mx.nd.array(bbox[np.newaxis, :, 4:4+self._num_bases])
 
         gt_ids = mx.nd.array(bbox[np.newaxis, :, 4+self._num_bases:4+self._num_bases+1])

@@ -20,11 +20,11 @@ def parse_args():
                         help="Base network name yolo3_darknet53_voc\yolo3_tiny_darknet_voc")
     parser.add_argument('--images', type=str, default= 'vis_img',
                         help='Test images, use comma to split multiple.')
-    parser.add_argument('--save_dir', type=str, default='vis_demo_uniform',
+    parser.add_argument('--save_dir', type=str, default='vis_demo_var_tanh',
                         help='')
-    parser.add_argument('--gpus', type=str, default='0',
+    parser.add_argument('--gpus', type=str, default='1,2',
                         help='Training with GPUs, you can specify 1,3 for example.')
-    parser.add_argument('--pretrained', type=str, default='result_coco_pretrain_uniform_cos_lbsm_yolo3_darknet53_coco_0049_0.0000.params',
+    parser.add_argument('--pretrained', type=str, default='result_coco_pretrain_var_tanh_lbsm_yolo3_darknet53_coco_0063_0.0000.params',
                         help='Load weights from previously saved parameters.')
     parser.add_argument('--thresh', type=float, default=0.45,
                         help='Threshold of object score when visualize the bboxes.')
@@ -76,7 +76,7 @@ if __name__ == '__main__':
         b = time.time()  # Pure network speed
         ax = gcv.utils.viz.plot_r_polygon(img, bboxes, coef, img_w, img_h, scores, ids , 
                                           thresh=args.thresh,class_names=net.classes, ax=ax,
-                                          num_bases=50, method='uniform')
+                                          num_bases=50, method='var')
         c = time.time()
         total_time_net += b - a
         total_time_post += c - b

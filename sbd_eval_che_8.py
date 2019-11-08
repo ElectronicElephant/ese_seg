@@ -31,12 +31,12 @@ def parse_args():
     parser.add_argument('--data-shape', type=int, default=416,
                         help="Input data shape for evaluation, use 320, 416, 608... " +
                              "Training is with random shapes from (320 to 608).")
-    parser.add_argument('--batch-size', type=int, default=16,
+    parser.add_argument('--batch-size', type=int, default=8,
                         help='Training mini-batch size')
     parser.add_argument('--dataset', type=str, default='voc',
                         help='Training dataset. Now support voc.')
     parser.add_argument('--num-workers', '-j', dest='num_workers', type=int,
-                        default=16, help='Number of data workers, you can use larger '
+                        default=4, help='Number of data workers, you can use larger '
                         'number to accelerate data loading, if you CPU and GPUs are powerful.')
     parser.add_argument('--gpus', type=str, default='0',
                         help='Training with GPUs, you can specify 1,3 for example.')
@@ -108,8 +108,8 @@ def get_dataset(dataset, args):
         val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
     elif dataset.lower() == 'coco':
         val_dataset = gdata.cocoDetection(root='/home/tutian/dataset/coco_to_voc/val', subfolder='./bases_50_xml_'+'raw_coef')
-        val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
-        val_polygon_metric = New07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes, root='/home/tutian/dataset/coco_to_voc/val/')
+        val_metric = VOC07MApMetric(iou_thresh=0.75, class_names=val_dataset.classes)
+        val_polygon_metric = New07PolygonMApMetric(iou_thresh=0.75, class_names=val_dataset.classes, root='/home/tutian/dataset/coco_to_voc/val/')
     else:
         raise NotImplementedError('Dataset: {} not implemented.'.format(dataset))
     return val_dataset, val_metric, val_polygon_metric
@@ -148,6 +148,7 @@ def validate(net, val_data, ctx, eval_metric, polygon_metric, args):
         # WQ Analysis
         gt_imgids = []
         gt_coefs = []
+        gt_inst_ids = []
         for x, y in zip(data, label):
             # get prediction results
             ids, scores, bboxes, coef = net(x)
@@ -165,13 +166,12 @@ def validate(net, val_data, ctx, eval_metric, polygon_metric, args):
             gt_widths.append(y.slice_axis(axis=-1, begin=6+50, end=7+50))
             gt_heights.append(y.slice_axis(axis=-1, begin=7+50, end=8+50))
             gt_imgids.append(y.slice_axis(axis=-1, begin=8+50, end=9+50))
+            gt_inst_ids.append(y.slice_axis(axis=-1, begin=9+50, end=10+50))
+    
         # update metric
         eval_metric.update(det_bboxes, det_ids, det_scores, gt_bboxes, gt_ids, gt_difficults)
         # polygon_metric.update(det_bboxes, det_coefs, det_ids, det_scores, gt_bboxes, gt_ids, gt_widths, gt_heights, gt_difficults, gt_coefs, gt_imgids)
-        polygon_metric.update(det_bboxes, det_coefs, det_ids, det_scores, gt_bboxes, gt_ids, gt_widths, gt_heights, gt_difficults, gt_coefs, gt_imgids)
-
-        # if (batch_num == 36):
-        #     break
+        polygon_metric.update(det_bboxes, det_coefs, det_ids, det_scores, gt_bboxes, gt_ids, gt_widths, gt_heights, gt_difficults, gt_coefs, gt_imgids, gt_inst_ids)
     return eval_metric.get(), polygon_metric.get()
 
 
