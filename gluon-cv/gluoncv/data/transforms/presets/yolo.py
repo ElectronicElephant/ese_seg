@@ -220,16 +220,17 @@ class YOLO3DefaultValTransform(object):
         self._num_bases = num_bases
         self._dataset = dataset
 
-    def __call__(self, src, label):
+    def __call__(self, src, label, sem=None):
         """Apply transform to validation image/label."""
         # resize
         h, w, _ = src.shape
         img = timage.imresize(src, self._width, self._height, interp=9)
-        bbox = tbbox.val_resize(label, in_size=(w, h), out_size=(self._width, self._height),
-                                num_bases=self._num_bases, dataset=self._dataset)
-
         img = mx.nd.image.to_tensor(img)
         img = mx.nd.image.normalize(img, mean=self._mean, std=self._std)
-        # return img, bbox.astype(img.dtype)
+        # For COCO EVAL
+        return img, mx.nd.array([h, w])
+
+        bbox = tbbox.val_resize(label, in_size=(w, h), out_size=(self._width, self._height),
+                                num_bases=self._num_bases, dataset=self._dataset)
         return img, bbox.astype(np.float64)
 

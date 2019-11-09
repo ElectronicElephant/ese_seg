@@ -65,6 +65,7 @@ class COCOInstance(VisionDataset):
         self.contiguous_id_to_json = None
         self._coco = []
         self._items, self._labels, self._segms = self._load_jsons()
+        # print(self._items)
 
     def __str__(self):
         detail = ','.join([str(s) for s in self._splits])
