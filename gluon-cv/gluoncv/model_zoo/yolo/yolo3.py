@@ -364,7 +364,6 @@ class YOLOV3(gluon.HybridBlock):
         """
         all_box_centers = []
         all_box_scales = []
-        # all_coef_center = []
         all_coef = []
         all_objectness = []
         all_class_pred = []
@@ -384,15 +383,7 @@ class YOLOV3(gluon.HybridBlock):
                 dets, box_centers, box_scales, coef, objness, class_pred, anchors, offsets = output(tip)
                 all_box_centers.append(box_centers.reshape((0, -3, -1)))
                 all_box_scales.append(box_scales.reshape((0, -3, -1)))
-                # all_coef_center.append(coef_center.reshape((0, -3, -1))
                 all_coef.append(coef.reshape((0, -3, -1)))
-
-                # checking
-                # print('checking coef in YOLOV3')
-                # print('coef: ', coef.shape, mx.nd.max(coef), mx.nd.min(coef))
-                # print('all_coef: ', all_coef.shape, nd.max(all_coef), nd.min(all_coef))
-
-                # all_coef.append(coef.reshape((0, -3, -1)))
                 all_objectness.append(objness.reshape((0, -3, -1)))
                 all_class_pred.append(class_pred.reshape((0, -3, -1)))
                 all_anchors.append(anchors)
@@ -427,21 +418,42 @@ class YOLOV3(gluon.HybridBlock):
             return (F.concat(*all_detections, dim=1), all_anchors, all_offsets, all_feat_maps,
                     F.concat(*all_box_centers, dim=1), F.concat(*all_box_scales, dim=1), F.concat(*all_coef, dim=1),
                     F.concat(*all_objectness, dim=1), F.concat(*all_class_pred, dim=1))
-
+            
+            
         # concat all detection results from different stages
         result = F.concat(*all_detections, dim=1)
-        # apply nms per class
-        if self.nms_thresh > 0 and self.nms_thresh < 1:
-            result = F.contrib.box_nms(
-                result, overlap_thresh=self.nms_thresh, valid_thresh=0.01,
-                topk=self.nms_topk, id_index=0, score_index=1, coord_start=2, force_suppress=False)
-            if self.post_nms > 0:
-                result = result.slice_axis(axis=1, begin=0, end=self.post_nms)
-        ids = result.slice_axis(axis=-1, begin=0, end=1)
-        scores = result.slice_axis(axis=-1, begin=1, end=2)
-        bboxes = result.slice_axis(axis=-1, begin=2, end=6)
-        # absolute_coef_centers = result.slice_axis(axis=-1, begin=6, end=8)
-        coefs = result.slice_axis(axis=-1, begin=6, end= 6 + self._num_bases)
+
+        use_fast_nms = False
+        if use_fast_nms:
+            # Config
+            iou_threshold = 0.5
+            top_k = 200
+
+            ids = result.slice_axis(axis=-1, begin=0, end=1)
+            scores = result.slice_axis(axis=-1, begin=1, end=2)
+            bboxes = result.slice_axis(axis=-1, begin=2, end=6)
+            coefs = result.slice_axis(axis=-1, begin=6, end= 6 + self._num_bases)
+
+            idx = F.argsort(scores, 1, is_ascend=0)
+            scores = F.sort(scores, 1, is_ascend=0)
+
+            idx = idx[:, :top_k]
+            scores = scores[:, :top_k]
+            num_classes, num_dets = idx.size()
+
+
+        else:
+            # apply nms per class
+            if self.nms_thresh > 0 and self.nms_thresh < 1:
+                result = F.contrib.box_nms(
+                    result, overlap_thresh=self.nms_thresh, valid_thresh=0.01,
+                    topk=self.nms_topk, id_index=0, score_index=1, coord_start=2, force_suppress=False)
+                if self.post_nms > 0:
+                    result = result.slice_axis(axis=1, begin=0, end=self.post_nms)
+            ids = result.slice_axis(axis=-1, begin=0, end=1)
+            scores = result.slice_axis(axis=-1, begin=1, end=2)
+            bboxes = result.slice_axis(axis=-1, begin=2, end=6)
+            coefs = result.slice_axis(axis=-1, begin=6, end= 6 + self._num_bases)
         
         return ids, scores, bboxes, coefs
 

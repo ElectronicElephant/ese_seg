@@ -220,6 +220,41 @@ class YOLO3DefaultValTransform(object):
         self._num_bases = num_bases
         self._dataset = dataset
 
+    def __call__(self, src, label):
+        """Apply transform to validation image/label."""
+        # resize
+        h, w, _ = src.shape
+        img = timage.imresize(src, self._width, self._height, interp=9)
+        img = mx.nd.image.to_tensor(img)
+        img = mx.nd.image.normalize(img, mean=self._mean, std=self._std)
+        bbox = tbbox.val_resize(label, in_size=(w, h), out_size=(self._width, self._height),
+                                num_bases=self._num_bases, dataset=self._dataset)
+        return img, bbox.astype(np.float64)
+
+
+class YOLO3UsdSegCocoValTransform(object):
+    """ USD-SEG Transform for COCO
+
+    Parameters
+    ----------
+    width : int
+        Image width.
+    height : int
+        Image height.
+    mean : array-like of size 3
+        Mean pixel values to be subtracted from image tensor. Default is [0.485, 0.456, 0.406].
+    std : array-like of size 3
+        Standard deviation to be divided from image. Default is [0.229, 0.224, 0.225].
+
+    """
+    def __init__(self, width, height, num_bases, dataset, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+        self._width = width
+        self._height = height
+        self._mean = mean
+        self._std = std
+        self._num_bases = num_bases
+        self._dataset = dataset
+
     def __call__(self, src, label, sem=None):
         """Apply transform to validation image/label."""
         # resize
@@ -230,7 +265,36 @@ class YOLO3DefaultValTransform(object):
         # For COCO EVAL
         return img, mx.nd.array([h, w])
 
-        bbox = tbbox.val_resize(label, in_size=(w, h), out_size=(self._width, self._height),
-                                num_bases=self._num_bases, dataset=self._dataset)
-        return img, bbox.astype(np.float64)
 
+class YOLO3UsdSegCocoDemoTransform(object):
+    """ USD-SEG Transform for COCO
+
+    Parameters
+    ----------
+    width : int
+        Image width.
+    height : int
+        Image height.
+    mean : array-like of size 3
+        Mean pixel values to be subtracted from image tensor. Default is [0.485, 0.456, 0.406].
+    std : array-like of size 3
+        Standard deviation to be divided from image. Default is [0.229, 0.224, 0.225].
+
+    """
+    def __init__(self, width, height, num_bases, dataset, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+        self._width = width
+        self._height = height
+        self._mean = mean
+        self._std = std
+        self._num_bases = num_bases
+        self._dataset = dataset
+
+    def __call__(self, src, label, sem=None):
+        """Apply transform to validation image/label."""
+        # resize
+        h, w, _ = src.shape
+        img = timage.imresize(src, self._width, self._height, interp=9)
+        img = mx.nd.image.to_tensor(img)
+        img = mx.nd.image.normalize(img, mean=self._mean, std=self._std)
+        # For COCO EVAL
+        return img, src, mx.nd.array([h, w])

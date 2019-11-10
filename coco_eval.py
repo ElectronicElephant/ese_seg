@@ -15,7 +15,7 @@ from gluoncv import utils as gutils
 from gluoncv.model_zoo import get_model
 from gluoncv.data.batchify import Tuple, Stack, Pad
 from gluoncv.data.transforms.presets.yolo import YOLO3DefaultTrainTransform
-from gluoncv.data.transforms.presets.yolo import YOLO3DefaultValTransform
+from gluoncv.data.transforms.presets.yolo import YOLO3UsdSegCocoValTransform
 from gluoncv.data.dataloader import RandomTransformDataLoader
 from gluoncv.utils.metrics.voc_detection import VOC07MApMetric
 from gluoncv.data.mscoco.instance import COCOInstance
@@ -121,10 +121,10 @@ def get_dataloader(net, val_dataset, data_shape, batch_size, num_workers, args):
     width, height = data_shape, data_shape
     # val_batchify_fn = Tuple(Stack(), Pad(pad_val=-1))
 
-    # # Copied from eval_mask_rcnn.py
+    # Copied from eval_mask_rcnn.py
     val_bfn = batchify.Tuple(*[batchify.Append() for _ in range(2)])
     val_loader = gluon.data.DataLoader(
-        val_dataset.transform(YOLO3DefaultValTransform(width, height, 50, 'coco')),
+        val_dataset.transform(YOLO3UsdSegCocoValTransform(width, height, 50, 'coco')),
         batch_size, False, batchify_fn=val_bfn, last_batch='keep', num_workers=num_workers)
     return val_loader
 
@@ -159,12 +159,15 @@ def validate(net, val_data, ctx, eval_metric, size, args):
 
             for x, im_info in zip(*batch):
                 # get prediction results
+                t1 = time.time()
                 ids, scores, bboxes, coefs = net(x)
+                t2 = time.time()
                 det_bboxes.append(clipper(bboxes, x))
                 det_ids.append(ids)
                 det_scores.append(scores)
                 det_coefs.append(coefs)
                 det_infos.append(im_info)
+                # print(f'Pure Network speed {1/(t2-t1)} fps')
 
             # update metric
             for det_bbox, det_id, det_score, def_coef, det_info in zip(det_bboxes, det_ids, det_scores, det_coefs, det_infos):
@@ -215,18 +218,17 @@ def demo_val(net, val_data, eval_metric, polygon_metric, ctx, args):
         os.makedirs(log_dir)
     fh = logging.FileHandler(log_file_path)
     logger.addHandler(fh)
-    tic = time.time()
-    btic = time.time()
     mx.nd.waitall()
     net.hybridize()
 
     map_bbox = validate(net, val_data, ctx, eval_metric, len(val_dataset), args)
     map_name, mean_ap = map_bbox
     val_msg = '\n'.join(['{}={}'.format(k, v) for k, v in zip(map_name, mean_ap)])
-    logger.info('[Epoch {}] Validation: \n{}'.format(0, val_msg))
+    logger.info('[Epoch {}] Validation: \n{}'.format(args.start_epoch, val_msg))
     
 if __name__ == '__main__':
     args = parse_args()
+    print(f'Internal Epoch : {args.start_epoch}')
     # fix seed for mxnet, numpy and python builtin random generator.
     gutils.random.seed(args.seed)
 
@@ -247,6 +249,7 @@ if __name__ == '__main__':
         async_net = net
     if args.resume.strip():
         net.load_parameters(args.resume.strip())
+        print(f'Loading {args.resume}')
         async_net.load_parameters(args.resume.strip())
     else:
         with warnings.catch_warnings(record=True) as w:
