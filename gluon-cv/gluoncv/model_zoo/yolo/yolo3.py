@@ -158,12 +158,9 @@ class YOLOOutputV4(gluon.HybridBlock):
         # components
         raw_box_centers = pred.slice_axis(axis=-1, begin=0, end=2)
         raw_box_scales = pred.slice_axis(axis=-1, begin=2, end=4)
-        # raw_coef_centers = pred.slice_axis(axis=-1, begin=4, end=6) # raw_coef_center_imitate wh
-        # begin and end below need to be minused by 2
-        raw_coefs = pred.slice_axis(axis=-1, begin=4, end=4 + self._num_bases)
-
-        objness = pred.slice_axis(axis=-1, begin=4 + self._num_bases, end=4 + self._num_bases + 1)
-        class_pred = pred.slice_axis(axis=-1, begin=4 + self._num_bases + 1, end=None)
+        raw_coefs = pred.slice_axis(axis=-1, begin=4, end=4+self._num_bases)
+        objness = pred.slice_axis(axis=-1, begin=4+self._num_bases, end=5+self._num_bases)
+        class_pred = pred.slice_axis(axis=-1, begin=5+self._num_bases, end=None)
 
         # valid offsets, (1, 1, height, width, 2)
         offsets = F.slice_like(offsets, x * 0, axes=(2, 3))
@@ -174,14 +171,13 @@ class YOLOOutputV4(gluon.HybridBlock):
         box_centers = F.broadcast_add(F.sigmoid(raw_box_centers), offsets) * self._stride
         box_scales = F.broadcast_mul(F.exp(raw_box_scales), anchors)
 
-        coefs = raw_coefs.slice_axis(axis=-1, begin=0 , end=self._num_bases)
+        # coefs = raw_coefs.slice_axis(axis=-1, begin=0 , end=self._num_bases)
         confidence = F.sigmoid(objness)
         class_score = F.broadcast_mul(F.sigmoid(class_pred), confidence)
         wh = box_scales / 2.0
         # recover bbox
         bbox = F.concat(box_centers - wh, box_centers + wh, dim=-1)
         # recover edge
-        # absolute_coef_centers = coef_centers + (box_centers - wh)
         if autograd.is_training():
             # during training, we don't need to convert whole bunch of info to detection results
             return (bbox.reshape((0, -1, 4)), raw_box_centers, raw_box_scales, raw_coefs, 
@@ -189,8 +185,7 @@ class YOLOOutputV4(gluon.HybridBlock):
 
         # prediction per class
         bboxes = F.tile(bbox, reps=(self._classes, 1, 1, 1, 1))
-        # absolute_coef_centers = F.tile(absolute_coef_centers, reps=(self._classes, 1, 1, 1, 1))
-        coefs = F.tile(coefs, reps=(self._classes, 1, 1, 1, 1))
+        coefs = F.tile(raw_coefs, reps=(self._classes, 1, 1, 1, 1))
         scores = F.transpose(class_score, axes=(3, 0, 1, 2)).expand_dims(axis=-1)
         ids = F.broadcast_add(scores * 0, F.arange(0, self._classes).reshape((0, 1, 1, 1, 1)))
         detections = F.concat(ids, scores, bboxes, coefs,dim=-1)# r_all, dim=-1)
@@ -287,10 +282,6 @@ class YOLOV3(gluon.HybridBlock):
                  ignore_iou_thresh=0.7, norm_layer=BatchNorm, norm_kwargs=None,num_bases=50, **kwargs):
         super(YOLOV3, self).__init__(**kwargs)
         self._classes = classes
-
-        print(len(classes))
-        print(classes)
-
         self.nms_thresh = nms_thresh
         self.nms_topk = nms_topk
         self.post_nms = post_nms
@@ -422,38 +413,17 @@ class YOLOV3(gluon.HybridBlock):
             
         # concat all detection results from different stages
         result = F.concat(*all_detections, dim=1)
-
-        use_fast_nms = False
-        if use_fast_nms:
-            # Config
-            iou_threshold = 0.5
-            top_k = 200
-
-            ids = result.slice_axis(axis=-1, begin=0, end=1)
-            scores = result.slice_axis(axis=-1, begin=1, end=2)
-            bboxes = result.slice_axis(axis=-1, begin=2, end=6)
-            coefs = result.slice_axis(axis=-1, begin=6, end= 6 + self._num_bases)
-
-            idx = F.argsort(scores, 1, is_ascend=0)
-            scores = F.sort(scores, 1, is_ascend=0)
-
-            idx = idx[:, :top_k]
-            scores = scores[:, :top_k]
-            num_classes, num_dets = idx.size()
-
-
-        else:
-            # apply nms per class
-            if self.nms_thresh > 0 and self.nms_thresh < 1:
-                result = F.contrib.box_nms(
-                    result, overlap_thresh=self.nms_thresh, valid_thresh=0.01,
-                    topk=self.nms_topk, id_index=0, score_index=1, coord_start=2, force_suppress=False)
-                if self.post_nms > 0:
-                    result = result.slice_axis(axis=1, begin=0, end=self.post_nms)
-            ids = result.slice_axis(axis=-1, begin=0, end=1)
-            scores = result.slice_axis(axis=-1, begin=1, end=2)
-            bboxes = result.slice_axis(axis=-1, begin=2, end=6)
-            coefs = result.slice_axis(axis=-1, begin=6, end= 6 + self._num_bases)
+        # apply nms per class
+        if self.nms_thresh > 0 and self.nms_thresh < 1:
+            result = F.contrib.box_nms(
+                result, overlap_thresh=self.nms_thresh, valid_thresh=0.01,
+                topk=self.nms_topk, id_index=0, score_index=1, coord_start=2, force_suppress=False)
+            if self.post_nms > 0:
+                result = result.slice_axis(axis=1, begin=0, end=self.post_nms)
+        ids = result.slice_axis(axis=-1, begin=0, end=1)
+        scores = result.slice_axis(axis=-1, begin=1, end=2)
+        bboxes = result.slice_axis(axis=-1, begin=2, end=6)
+        coefs = result.slice_axis(axis=-1, begin=6, end= 6 + self._num_bases)
         
         return ids, scores, bboxes, coefs
 
@@ -687,7 +657,7 @@ class TinyYOLOV3(gluon.HybridBlock):
     """
     def __init__(self, stages, channels, anchors, strides, classes, alloc_size=(128, 128),
                  nms_thresh=0.45, nms_topk=400, post_nms=100, pos_iou_thresh=1.0,
-                 ignore_iou_thresh=0.7, norm_layer=BatchNorm, norm_kwargs=None,deg=8, **kwargs):
+                 ignore_iou_thresh=0.7, norm_layer=BatchNorm, norm_kwargs=None, num_bases=50, **kwargs):
         super(TinyYOLOV3, self).__init__(**kwargs)
         self._classes = classes
         self.nms_thresh = nms_thresh
@@ -695,18 +665,18 @@ class TinyYOLOV3(gluon.HybridBlock):
         self.post_nms = post_nms
         self._pos_iou_thresh = pos_iou_thresh
         self._ignore_iou_thresh = ignore_iou_thresh
-        self._deg =deg
+        self._num_bases = num_bases
         if pos_iou_thresh >= 1:
-            self._target_generator = YOLOV3TargetMerger(len(classes), ignore_iou_thresh, deg=self._deg)
+            self._target_generator = YOLOV3TargetMerger(len(classes), ignore_iou_thresh, num_bases=num_bases)
         else:
             raise NotImplementedError(
                 "pos_iou_thresh({}) < 1.0 is not implemented!".format(pos_iou_thresh))
-        self._loss = YOLOV3Loss(deg=self._deg)
+        self._loss = YOLOV3Loss(num_bases = num_bases)
         with self.name_scope():
             self.stages = nn.HybridSequential()
             self.transitions = nn.HybridSequential()
             self.yolo_blocks = nn.HybridSequential()
-            self.yolo_outputs = nn.HybridSequential()
+            self.yolo_outputsV4 = nn.HybridSequential()
             # note that anchors and strides should be used in reverse order
             for i, stage, channel, anchor, stride in zip(
                     range(len(stages)), stages, channels, anchors[::-1], strides[::-1]):
@@ -714,8 +684,8 @@ class TinyYOLOV3(gluon.HybridBlock):
                 block = YOLODetectionBlockV3(
                     channel, norm_layer=norm_layer, norm_kwargs=norm_kwargs)
                 self.yolo_blocks.add(block)
-                output = YOLOOutputV4(i, len(classes), anchor, stride, alloc_size=alloc_size, deg=self._deg)
-                self.yolo_outputs.add(output)
+                output = YOLOOutputV4(i, len(classes), anchor, stride, alloc_size=alloc_size, num_bases=self._num_bases)
+                self.yolo_outputsV4.add(output)
                 if i > 0:
                     self.transitions.add(_conv2d(channel, 1, 0, 1,
                                                  norm_layer=norm_layer, norm_kwargs=norm_kwargs))
@@ -761,7 +731,6 @@ class TinyYOLOV3(gluon.HybridBlock):
         """
         all_box_centers = []
         all_box_scales = []
-        all_coef_center = []
         all_coef = []
         all_objectness = []
         all_class_pred = []
@@ -770,18 +739,17 @@ class TinyYOLOV3(gluon.HybridBlock):
         all_feat_maps = []
         all_detections = []
         routes = []
-        for stage, block, output in zip(self.stages, self.yolo_blocks, self.yolo_outputs):
+        for stage, block, output in zip(self.stages, self.yolo_blocks, self.yolo_outputsV4):
             x = stage(x)
             routes.append(x)
             
         # the YOLO output layers are used in reverse order, i.e., from very deep layers to shallow
-        for i, block, output in zip(range(len(routes)), self.yolo_blocks, self.yolo_outputs):
+        for i, block, output in zip(range(len(routes)), self.yolo_blocks, self.yolo_outputsV4):
             x, tip = block(x)
             if autograd.is_training():
-                dets, box_centers, box_scales, coef_center, coef, objness, class_pred, anchors, offsets = output(tip)
+                dets, box_centers, box_scales, coef, objness, class_pred, anchors, offsets = output(tip)
                 all_box_centers.append(box_centers.reshape((0, -3, -1)))
                 all_box_scales.append(box_scales.reshape((0, -3, -1)))
-                all_coef_center.append(coef_center.reshape((0, -3, -1)))
                 all_coef.append(coef.reshape((0, -3, -1)))
                 all_objectness.append(objness.reshape((0, -3, -1)))
                 all_class_pred.append(class_pred.reshape((0, -3, -1)))
@@ -809,13 +777,13 @@ class TinyYOLOV3(gluon.HybridBlock):
                 # generate losses and return them directly
                 box_preds = F.concat(*all_detections, dim=1)
                 all_preds = [F.concat(*p, dim=1) for p in [
-                    all_objectness, all_box_centers, all_box_scales, all_coef_center, all_coef, all_class_pred]]
+                    all_objectness, all_box_centers, all_box_scales, all_coef, all_class_pred]]
                 all_targets = self._target_generator(box_preds, *args)
                 return self._loss(*(all_preds + all_targets))
 
             # return raw predictions, this is only used in DataLoader transform function.
             return (F.concat(*all_detections, dim=1), all_anchors, all_offsets, all_feat_maps,
-                    F.concat(*all_box_centers, dim=1), F.concat(*all_box_scales, dim=1),F.concat(*all_coef_center, dim=1), F.concat(*all_coef, dim=1),
+                    F.concat(*all_box_centers, dim=1), F.concat(*all_box_scales, dim=1), F.concat(*all_coef, dim=1),
                     F.concat(*all_objectness, dim=1), F.concat(*all_class_pred, dim=1))
 
         # concat all detection results from different stages
@@ -830,10 +798,9 @@ class TinyYOLOV3(gluon.HybridBlock):
         ids = result.slice_axis(axis=-1, begin=0, end=1)
         scores = result.slice_axis(axis=-1, begin=1, end=2)
         bboxes = result.slice_axis(axis=-1, begin=2, end=6)
-        absolute_coef_centers = result.slice_axis(axis=-1, begin=6, end=8)
-        coefs = result.slice_axis(axis=-1, begin=8, end= 2*self._deg+2+8)
+        coefs = result.slice_axis(axis=-1, begin=6, end= 6+self._num_bases)
         
-        return ids, scores, bboxes, absolute_coef_centers, coefs
+        return ids, scores, bboxes, coefs
 
     def set_nms(self, nms_thresh=0.45, nms_topk=400, post_nms=100):
         """Set non-maximum suppression parameters.

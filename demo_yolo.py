@@ -17,6 +17,7 @@ from matplotlib.ticker import NullLocator
 from gluoncv.data.transforms.presets.yolo import YOLO3UsdSegCocoValTransform
 from gluoncv.data.mscoco.instance import COCOInstance
 from gluoncv.data import batchify
+from gluoncv.data.batchify import Tuple, Stack, Pad
 from mxnet import gluon
 from PIL import Image
 
@@ -27,11 +28,11 @@ def parse_args():
                         help="Base network name yolo3_darknet53_voc\yolo3_tiny_darknet_voc")
     parser.add_argument('--images', type=str, default= 'vis_img',
                         help='Test images, use comma to split multiple.')
-    parser.add_argument('--save_dir', type=str, default='vis_demo_var_tanh_epoch_84',
+    parser.add_argument('--save_dir', type=str, default='vis_demo',
                         help='')
-    parser.add_argument('--gpus', type=str, default='3',
+    parser.add_argument('--gpus', type=str, default='0',
                         help='Training with GPUs, you can specify 1,3 for example.')
-    parser.add_argument('--pretrained', type=str, default='result_coco_pretrain_var_tanh_lbsm_yolo3_darknet53_coco_0084_0.0000.params',
+    parser.add_argument('--pretrained', type=str, default='result_coco_pretrain_var_tanh_lbsm_small_lr_yolo3_darknet53_coco_0102_0.0000.params',
                         help='Load weights from previously saved parameters.')
     parser.add_argument('--thresh', type=float, default=0.45,
                         help='Threshold of object score when visualize the bboxes.')
@@ -139,6 +140,11 @@ CLASSES = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
             'scissors', 'teddy bear', 'hair drier', 'toothbrush')
 
 def generate_bbox_mask(coefs, bboxes, im_height, im_width):
+    # TO the original size
+    bboxes[:, 0] *= (im_width / 416.0)
+    bboxes[:, 2] *= (im_width / 416.0)
+    bboxes[:, 1] *= (im_height / 416.0)
+    bboxes[:, 3] *= (im_height / 416.0)
     masks = np.zeros((coefs.shape[0], im_height, im_width), dtype=np.uint8)
     bboxs = np.zeros((coefs.shape[0], 4), dtype=np.int32)
     for i, coef in enumerate(coefs):
@@ -166,6 +172,7 @@ def generate_bbox_mask(coefs, bboxes, im_height, im_width):
         bboxs[i] = [xmin, ymin, bboxw, bboxh]
     return bboxs, masks
 
+
 def speed_test():
     args = parse_args()
     # context list
@@ -176,14 +183,15 @@ def speed_test():
     net = gcv.model_zoo.get_model(args.network, pretrained=False, pretrained_base=False)
     net.load_parameters(args.pretrained)
     net.set_nms(0.45, 200)
-
     net.collect_params().reset_ctx(ctx = ctx)
+
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
 
     # Dataset
-    val_dataset = COCOInstance(root='/disk1/data/coco', skip_empty=False)
+    val_dataset = COCOInstance(root='/home/tutian/coco_val2017/', skip_empty=False)
     val_bfn = batchify.Tuple(*[batchify.Append() for _ in range(2)])
+    # val_bfn = Tuple(Stack(), Pad(pad_val=-1))
     val_loader = gluon.data.DataLoader(
         val_dataset.transform(YOLO3UsdSegCocoValTransform(416, 416, 50, 'coco')),
         1, False, batchify_fn=val_bfn, last_batch='keep', num_workers=1)
@@ -191,71 +199,102 @@ def speed_test():
     # Some preparation
     total_time_net = 0
     total_time_post = 0
+    total_time_cpu = 0
+    total_time_predot = 0
+    total_time_dot = 0
+    total_time_genmask = 0
+    total_time_calculate = 0
     colors = {i: plt.get_cmap('hsv')(i / len(CLASSES)) for i in range(len(CLASSES))}
     img_ids = sorted(val_dataset.coco.getImgIds())
 
+    mx.nd.waitall()
+    net.hybridize()
     save_images = False
 
     # print(image_list_batch)
-    for ibt, batch in enumerate(tqdm(val_loader)):
-        batch = split_and_load(batch, ctx_list=ctx)
-        for x, im_info in zip(*batch):
-            # get prediction results
-            t1 = time.time()
-            ids, scores, bboxes, coefs = net(x)
-            t2 = time.time()
+    with tqdm(total=5000) as pbar:
+        for ibt, batch in enumerate(val_loader):
+            batch = split_and_load(batch, ctx_list=ctx)
+            for x, im_info in zip(*batch):
+                # get prediction results
+                t1 = time.time()
+                ids, scores, bboxes, coefs = net(x)
 
-            # Post process
-            bboxes = bboxes[0].asnumpy()
-            ids = ids[0].asnumpy()
-            scores = scores[0].asnumpy()
-            coefs = coefs[0].asnumpy()
-            im_info = im_info[0].asnumpy()
-            im_height, im_width = [int(i) for i in im_info]
-            valid = np.where(((ids >= 0) & (scores >= 0.45)))[0]
-            ids = ids[valid]
-            scores = scores[valid]
-            # To bbox of original img size
-            bboxes = bboxes[valid]
-            bboxes[:, 0] *= (im_width / 416.0)
-            bboxes[:, 2] *= (im_width / 416.0)
-            bboxes[:, 1] *= (im_height / 416.0)
-            bboxes[:, 3] *= (im_height / 416.0)
-            coefs = coefs[valid]
-            coefs = coefs * sqrt_var + x_mean
+                t_c0 = time.time()
+                mx.nd.waitall()
+                t_c1 = time.time()
+                t2 = time.time()
 
-            bboxes, masks = generate_bbox_mask(coefs, bboxes, im_height, im_width)
-            t3 = time.time()
+                # Post process
+                t_cpu0 = time.time()
+                bboxes = bboxes.asnumpy()[0]
+                ids = ids.asnumpy()[0]
+                scores = scores.asnumpy()[0]
+                coefs = coefs.asnumpy()[0]
+                im_info = im_info.asnumpy()[0]
+                t_cpu1 = time.time()
+                total_time_cpu += (t_cpu1 - t_cpu0)
 
-            total_time_net += t2 - t1
-            total_time_post += t3 - t2
+                t_cpu0 = time.time()
+                im_height, im_width = [int(i) for i in im_info]
+                valid = np.where(((ids >= 0) & (scores >= 0.45)))[0]
+                ids = ids[valid]
+                scores = scores[valid]
+                bboxes = bboxes[valid]
+                coefs = coefs[valid]
+                coefs = coefs * sqrt_var + x_mean
+                t_cpu1 = time.time()
+                total_time_predot += (t_cpu1 - t_cpu0)
 
-            # Save the masks
-            if save_images:
-                fig = plt.figure(figsize=(10, 10))
-                ax = fig.add_subplot(1, 1, 1)
-                ax.imshow(Image.open('/disk1/data/coco/val2017/' + str(img_ids[ibt]).zfill(12)+'.jpg'))
-                for bbox, mask, idt in zip(bboxes, masks, ids):
-                    idt = int(idt)
-                    # bbox
-                    rect = plt.Rectangle((bbox[0], bbox[1]), bbox[2], bbox[3], fill=False,
-                                edgecolor=colors[idt], linewidth=2)
-                    ax.add_patch(rect)
-                    # mask
-                    mask_channel = np.zeros((im_height, im_width, 4))
-                    for i in range(4):
-                        mask_channel[:,:,i] = mask * colors[idt][i]
-                    ax.imshow(mask_channel, alpha=0.5)
+                t_cpu0 = time.time()
+                masks = np.dot(coefs, bases)
+                t_cpu1 = time.time()
+                total_time_dot += (t_cpu1 - t_cpu0)
 
-                plt.axis('off')
-                plt.gca().xaxis.set_major_locator(NullLocator())
-                plt.gca().yaxis.set_major_locator(NullLocator())
-                plt.subplots_adjust(top = 0.995, bottom = 0.005, right = 0.995, left = 0.005, hspace = 0, wspace = 0)
-                plt.savefig(os.path.join(args.save_dir, str(img_ids[ibt]).zfill(12)+'.jpg'))
-                plt.close()
+                t_cpu0 = time.time()
+                bboxes, masks = generate_bbox_mask(coefs, bboxes, im_height, im_width)
+                t_cpu1 = time.time()
+                total_time_genmask += (t_cpu1 - t_cpu0)
 
-    print("network speed ",1.0*len(val_loader) / total_time_net, "fps")
-    print("post process speed ",1.0*len(val_loader) / total_time_post, "fps")
+                t3 = time.time()
+                if ibt >= 500:
+                    total_time_net += (t2 - t1)
+                    total_time_calculate += (t_c1 - t_c0)
+                total_time_post += (t3 - t2)
 
+                # Save the masks
+                if save_images:
+                    fig = plt.figure(figsize=(10, 10))
+                    ax = fig.add_subplot(1, 1, 1)
+                    ax.imshow(Image.open('/disk1/data/coco/val2017/' + str(img_ids[ibt]).zfill(12)+'.jpg'))
+                    for bbox, mask, idt in zip(bboxes, masks, ids):
+                        idt = int(idt)
+                        # bbox
+                        rect = plt.Rectangle((bbox[0], bbox[1]), bbox[2], bbox[3], fill=False,
+                                    edgecolor=colors[idt], linewidth=2)
+                        ax.add_patch(rect)
+                        # mask
+                        mask_channel = np.zeros((im_height, im_width, 4))
+                        for i in range(4):
+                            mask_channel[:,:,i] = mask * colors[idt][i]
+                        ax.imshow(mask_channel, alpha=0.5)
+
+                    plt.axis('off')
+                    plt.gca().xaxis.set_major_locator(NullLocator())
+                    plt.gca().yaxis.set_major_locator(NullLocator())
+                    plt.subplots_adjust(top = 0.995, bottom = 0.005, right = 0.995, left = 0.005, hspace = 0, wspace = 0)
+                    plt.savefig(os.path.join(args.save_dir, str(img_ids[ibt]).zfill(12)+'.jpg'))
+                    plt.close()
+
+            pbar.update(1)
+
+    print("network speed      ", 4500 / total_time_net, "fps")
+    print("Sync speed         ", 4500 / total_time_calculate, "fps")
+    print("post process speed ", 5000 / total_time_post, "fps")
+    print("GPU to CPU speed   ", 5000 / total_time_cpu, "fps")
+    print("Pre-dot speed      ", 5000 / total_time_predot, "fps")
+    print("np.dot speed       ", 5000 / total_time_dot, "fps")
+    print("Gen-Mask speed     ", 5000 / total_time_genmask, "fps")
+    print("total speed        ", 5000 / (total_time_net + total_time_post), "fps")
 
 speed_test()

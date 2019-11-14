@@ -3,9 +3,6 @@ from __future__ import division
 
 import numpy as np
 import cv2 as cv
-import shapely
-from shapely.geometry import Polygon, MultiPoint
-import numpy.polynomial.chebyshev as chebyshev
 from sklearn.metrics import jaccard_score
 
 from PIL import Image  # vis, just for debug
