@@ -292,22 +292,13 @@ class YOLOV3TargetMerger(gluon.HybridBlock):
             mask2 = mask.tile(reps=(2,))
             center_targets = F.where(mask2, centers[1], centers[0])
             scale_targets = F.where(mask2, scales[1], scales[0])
-            # coef_senter_targets = F.where(mask2, coef_center[1], coef_center[0])
             mask_coef = mask.tile(reps=(self._num_bases))
             coef_targets = F.where(mask_coef, coef[1], coef[0])
-            # print('checking coef_targets')
-            # print("coef_targets:", coef_targets.shape, nd.max(coef_targets), nd.min(coef_targets))
 
             weights = F.where(mask2, weights[1], weights[0])
             mask3 = mask.tile(reps=(self._num_class,))
             class_targets = F.where(mask3, clas[1], clas[0])
-            # smooth_weight = 1. / self._num_class
-            # if self._label_smooth:
-            #     smooth_weight = 1. / self._num_class
-            #     class_targets = F.where(
-            #         class_targets > 0.5, class_targets - smooth_weight, class_targets)
-            #     class_targets = F.where(
-            #         class_targets < -0.5, class_targets, F.ones_like(class_targets) * smooth_weight)
+
             smooth_weight = 1. / self._num_class
             if self._label_smooth:
                 smooth_weight = min(1. / self._num_class, 1. / 40)

@@ -109,7 +109,7 @@ def get_dataset(dataset, args):
         val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
         val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
     elif dataset.lower() == 'coco':
-        val_dataset = COCOInstance(root='/disk1/data/coco', skip_empty=False)
+        val_dataset = COCOInstance(root='/home/tutian/dataset/', skip_empty=False)
         val_metric = COCOInstanceMetric(val_dataset, 'test_cocoapi', method='var')
         val_polygon_metric = None
     else:
@@ -167,7 +167,6 @@ def validate(net, val_data, ctx, eval_metric, size, args):
                 det_scores.append(scores)
                 det_coefs.append(coefs)
                 det_infos.append(im_info)
-                # print(f'Pure Network speed {1/(t2-t1)} fps')
 
             # update metric
             for det_bbox, det_id, det_score, def_coef, det_info in zip(det_bboxes, det_ids, det_scores, det_coefs, det_infos):
