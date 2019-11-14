@@ -133,7 +133,10 @@ def plot_r_polygon(img, bboxes, coefs, img_w, img_h, scores=None, labels=None, t
                 colors[cls_id] = plt.get_cmap('hsv')(cls_id / len(class_names))
             else:
                 colors[cls_id] = (random.random(), random.random(), random.random())
+        colors[0] = plt.get_cmap('hsv')(20 / len(class_names))  # Make person and bicycle different
         xmin, ymin, xmax, ymax = [int(x) for x in bbox]
+        bboxw = xmax - xmin
+        bboxh = ymax - ymin
         rect = plt.Rectangle((xmin, ymin), xmax - xmin,
                              ymax - ymin, fill=False,
                              edgecolor=colors[cls_id],
@@ -149,38 +152,34 @@ def plot_r_polygon(img, bboxes, coefs, img_w, img_h, scores=None, labels=None, t
                     '{:s} {:s}'.format(class_name, score),
                     bbox=dict(facecolor=colors[cls_id], alpha=0.5),
                     fontsize=12, color='white')
-        # demo
-        # coef = coefs[i].reshape(1,num_bases)
-        # if coefs[i][0] >= 0.999 or coefs[i][0] <= -0.999:
-        #     coefs[i][0] *= 2
 
+        # Mask
         if method == 'var':
             coefs_single = coefs[i] * sqrt_var + x_mean
         elif method == 'uniform':
             coefs_single = coefs[i] * (x_max-x_min) + x_min
 
-        mask_single = np.dot(coefs_single, bases)
-        mask_single = np.reshape(mask_single, (64, 64))
-
-        bboxw = xmax - xmin
-        bboxh = ymax - ymin 
-        
-        board = np.zeros((max(ymax, img_h), max(xmax, img_w), 4))
-        # resized = cv.resize(mask_single, (bboxw, bboxh), interpolation = cv.INTER_NEAREST)
-        resized = cv.resize(mask_single, (bboxw, bboxh))
-        theta = (resized.max() + resized.min()) / 2
-        resized = (resized > theta)
-        # print(board.shape, xmin, xmax, ymin, ymax, bboxw, bboxh, np.array(resized).shape)
+        mask_single = np.dot(coefs_single, bases).reshape(64, 64)
+        theta = (mask_single.max() + mask_single.min()) / 2
+        resized = (cv.resize(mask_single, (bboxw , bboxh)) > theta)
         if (ymin<0):
             resized = resized[-ymin:,:]
             ymin = 0
         if (xmin<0):
             resized = resized[:, -xmin:]
             xmin = 0
+        if (xmax > img_w):
+            resized = resized[:, : -(xmax - img_w)]
+            xmax = img_w
+        if (ymax > img_h):
+            resized = resized[:-(ymax - img_h), :]
+            ymax = img_h
+
+        board = np.zeros((img_h, img_w, 4))
         for i in range(4):
             board[ymin:ymax,xmin:xmax, i] = resized*colors[cls_id][i]
-        # board = np.dot(np.array(colors[cls_id])[:3], board)
 
-        ax.imshow(board, alpha=0.5)
+        ax.imshow(board, alpha=0.3)
+        ax.imshow(img.astype(np.uint8), alpha=0)
 
     return ax

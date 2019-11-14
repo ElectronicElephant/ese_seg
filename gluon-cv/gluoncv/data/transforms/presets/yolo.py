@@ -255,7 +255,7 @@ class YOLO3UsdSegCocoValTransform(object):
         self._num_bases = num_bases
         self._dataset = dataset
 
-    def __call__(self, src, label, sem=None):
+    def __call__(self, src, label=None, sem=None):
         """Apply transform to validation image/label."""
         # resize
         h, w, _ = src.shape
@@ -289,7 +289,7 @@ class YOLO3UsdSegCocoDemoTransform(object):
         self._num_bases = num_bases
         self._dataset = dataset
 
-    def __call__(self, src, label, sem=None):
+    def __call__(self, src, label=None, sem=None):
         """Apply transform to validation image/label."""
         # resize
         h, w, _ = src.shape

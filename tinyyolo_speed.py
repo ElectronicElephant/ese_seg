@@ -24,7 +24,7 @@ from PIL import Image
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Test with YOLO networks.')
-    parser.add_argument('--network', type=str, default='yolo3_darknet53_coco',
+    parser.add_argument('--network', type=str, default='yolo3_tiny_darknet_voc',
                         help="Base network name yolo3_darknet53_voc\yolo3_tiny_darknet_voc")
     parser.add_argument('--images', type=str, default= 'vis_img',
                         help='Test images, use comma to split multiple.')
@@ -32,77 +32,12 @@ def parse_args():
                         help='')
     parser.add_argument('--gpus', type=str, default='0',
                         help='Training with GPUs, you can specify 1,3 for example.')
-    parser.add_argument('--pretrained', type=str, default='result_coco_pretrain_var_tanh_lbsm_small_lr_yolo3_darknet53_coco_0102_0.0000.params',
+    parser.add_argument('--pretrained', type=str, default='/home/tutian/ese_seg/tinyyolo/tinyyolo_speedtest.params',
                         help='Load weights from previously saved parameters.')
     parser.add_argument('--thresh', type=float, default=0.45,
                         help='Threshold of object score when visualize the bboxes.')
     args = parser.parse_args()
     return args
-
-
-def main():
-    args = parse_args()
-    # context list
-    ctx = [mx.gpu(int(i)) for i in args.gpus.split(',') if i.strip()]
-    ctx = [mx.cpu()] if not ctx else ctx
-    if not os.path.exists(args.images):
-        os.mkdir(args.images)  
-
-    # image_nameList = os.listdir(args.images)
-    # image_list = []
-    # for i in image_nameList:
-    #     image_list.append(os.path.join(args.images,i))
-
-    if args.pretrained.lower() in ['true', '1', 'yes', 't']:
-        net = gcv.model_zoo.get_model(args.network, pretrained=True)
-    else:
-        net = gcv.model_zoo.get_model(args.network, pretrained=False, pretrained_base=False)
-        net.load_parameters(args.pretrained)
-    net.set_nms(0.45, 200)
-
-    net.collect_params().reset_ctx(ctx = ctx)
-    if not os.path.exists(args.save_dir):
-        os.mkdir(args.save_dir)
-
-    # image_list_batch = []
-    # image_list = open('/home/tutian/dataset/VOC2012/ImageSets/Segmentation/val.txt').readlines()
-    # for img in image_list:
-    #     image_list_batch.append('/home/tutian/dataset/VOC2012/JPEGImages/'+img[:-1]+'.jpg')
-    image_list_batch = ['/home/tutian/dataset/VOC2012/JPEGImages/2009_003065.jpg', 
-                        '/home/tutian/dataset/VOC2012/JPEGImages/2007_001457.jpg', 
-                        '/home/tutian/dataset/VOC2012/JPEGImages/2009_000828.jpg', 
-                        '/home/tutian/dataset/VOC2012/JPEGImages/2007_004510.jpg',
-                        '/home/tutian/dataset/VOC2012/JPEGImages/2007_009938.jpg',
-                        '/home/tutian/dataset/VOC2012/JPEGImages/2009_004987.jpg',
-                        '/home/tutian/dataset/VOC2012/JPEGImages/2008_002521.jpg',
-                        ] 
-    total_time_net = 0
-    total_time_post = 0
-    # print(image_list_batch)
-    for image in tqdm(image_list_batch):
-        fig = plt.figure(figsize=(10, 10))
-        ax = fig.add_subplot(1, 1, 1)
-        img_str = image.split('/')[-1]
-        x, img = presets.yolo.load_test(image, short=416)
-        img_w = img.shape[1]
-        img_h = img.shape[0]
-        x = x.as_in_context(ctx[0])
-        a = time.time()
-        ids, scores, bboxes, coef = [xx[0].asnumpy() for xx in net(x)]
-        b = time.time()  # Pure network speed
-        ax = gcv.utils.viz.plot_r_polygon(img, bboxes, coef, img_w, img_h, scores, ids , 
-                                          thresh=args.thresh, class_names=net.classes, ax=ax,
-                                          num_bases=50, method='var')
-        c = time.time()
-        total_time_net += b - a
-        total_time_post += c - b
-        plt.axis('off')
-        # plt.subplots_adjust(top = 0.995, bottom = 0.005, right = 0.995, left = 0.005, hspace = 0, wspace = 0)
-        plt.tight_layout()
-        plt.savefig(os.path.join(args.save_dir,img_str))
-        plt.close()
-    print("network speed ",1.0*len(image_list_batch) / total_time_net, "fps")
-    print("post process speed ",1.0*len(image_list_batch) / total_time_post, "fps")
 
 
 def split_and_load(batch, ctx_list):
@@ -195,7 +130,7 @@ def speed_test():
         os.mkdir(args.save_dir)
 
     # Dataset
-    val_dataset = COCOInstance(root='/home/tutian/coco_val2017/', skip_empty=False)
+    val_dataset = COCOInstance(root='/home/tutian/dataset', skip_empty=False)
     val_bfn = batchify.Tuple(*[batchify.Append() for _ in range(2)])
     # val_bfn = Tuple(Stack(), Pad(pad_val=-1))
     val_loader = gluon.data.DataLoader(
@@ -303,5 +238,4 @@ def speed_test():
     print("Gen-Mask speed     ", 5000 / total_time_genmask, "fps")
     print("total speed        ", 5000 / (total_time_net + total_time_post), "fps")
 
-# speed_test()
-main()
+speed_test()

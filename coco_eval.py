@@ -109,7 +109,11 @@ def get_dataset(dataset, args):
         val_metric = VOC07MApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
         val_polygon_metric = VOC07PolygonMApMetric(iou_thresh=0.5, class_names=val_dataset.classes)
     elif dataset.lower() == 'coco':
+<<<<<<< HEAD
         val_dataset = COCOInstance(root='/home/tutian/coco_val2017/', skip_empty=False)
+=======
+        val_dataset = COCOInstance(root='/home/tutian/dataset/', skip_empty=False)
+>>>>>>> adf79f77d047abcde52e38fa36513e5b18d900e6
         val_metric = COCOInstanceMetric(val_dataset, 'test_cocoapi', method='var')
         val_polygon_metric = None
     else:
