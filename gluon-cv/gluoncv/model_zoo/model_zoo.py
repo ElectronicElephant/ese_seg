@@ -155,6 +155,7 @@ _models = {
     'yolo3_darknet53_coco_pretrain': yolo3_darknet53_voc,
     'yolo3_tiny_darknet_voc': yolo3_tiny_darknet_voc,
     'yolo3_tiny_darknet_coco_pretrain': yolo3_tiny_darknet_voc,
+    'yolo3_resnet101_voc': yolo3_resnet101_voc,
     'yolo3_mobilenet1.0_coco': yolo3_mobilenet1_0_coco,
     'yolo3_mobilenet1.0_voc': yolo3_mobilenet1_0_voc,
     'yolo3_mobilenet1.0_custom': yolo3_mobilenet1_0_custom,

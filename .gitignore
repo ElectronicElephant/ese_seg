@@ -1,13 +1,16 @@
-/data/*
-/sbd/*
-/ori_label_center_edage
-/benchmark_RELEASE
-/gluon-cv_bak/*
-/archived/*
-/debug/*
+data/*
+sbd/*
+ori_label_center_edage
+benchmark_RELEASE
+gluon-cv_bak/*
+archived/*
+debug/*
+vis*/*
 
 *.params
 *.log
 *.jpg
 *.png
 *.json
+*.npy
+

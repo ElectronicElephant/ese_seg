@@ -117,8 +117,7 @@ def plot_r_polygon(img, bboxes, coefs, img_w, img_h, scores=None, labels=None, t
         colors = dict()
 
     bases = np.load('/home/tutian/dataset/coco_to_voc/coco_all_50_1.npy')
-    # coefs = np.tanh(coefs)
-    # masks = np.zeros((img_h, img_w))
+    masks = []
 
     for i, bbox in enumerate(bboxes):
         if scores is not None and scores.flat[i] < thresh:
@@ -178,8 +177,9 @@ def plot_r_polygon(img, bboxes, coefs, img_w, img_h, scores=None, labels=None, t
         board = np.zeros((img_h, img_w, 4))
         for i in range(4):
             board[ymin:ymax,xmin:xmax, i] = resized*colors[cls_id][i]
+        masks.append(board[:,:,0].astype(bool))
 
         ax.imshow(board, alpha=0.3)
         ax.imshow(img.astype(np.uint8), alpha=0)
 
-    return ax
+    return ax, masks

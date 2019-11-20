@@ -15,12 +15,14 @@ from .darknet import _conv2d, darknet53, Tiny_darknet
 from ..mobilenet import get_mobilenet
 from .yolo_target import YOLOV3TargetMerger
 from ...loss import YOLOV3Loss
+from ..resnet import resnet101_v1, resnet101_v2
 
 __all__ = ['YOLOV3',
            'get_yolov3',
            'yolo3_darknet53_voc',
            'yolo3_darknet53_coco',
            'yolo3_darknet53_custom',
+           'yolo3_resnet101_voc',
            'yolo3_tiny_darknet_voc',
            'yolo3_mobilenet1_0_coco',
            'yolo3_mobilenet1_0_voc',
@@ -363,9 +365,12 @@ class YOLOV3(gluon.HybridBlock):
         all_feat_maps = []
         all_detections = []
         routes = []
+        # print('loc_1', x.shape)
         for stage, block, output in zip(self.stages, self.yolo_blocks, self.yolo_outputsV4):
             x = stage(x)
+            # print('loc_in_for', x.shape)
             routes.append(x)
+        # print('loc_2', x.shape)
 
         # the YOLO output layers are used in reverse order, i.e., from very deep layers to shallow
         for i, block, output in zip(range(len(routes)), self.yolo_blocks, self.yolo_outputsV4):
@@ -574,7 +579,9 @@ def get_yolov3(name, stages, filters, anchors, strides, classes,
             net.load_parameters(get_model_file(full_name, tag=pretrained, root=root), ctx=ctx)
     elif name == 'tiny_darknet':
         net = TinyYOLOV3(stages, filters, anchors, strides, classes=classes, **kwargs)
-        
+    elif name == 'resnet101':
+        net = YOLOV3(stages, filters, anchors, strides, classes=classes, **kwargs)
+
     return net
 
 def yolo3_darknet53_voc(pretrained_base=True, pretrained=False,
@@ -920,6 +927,44 @@ def yolo3_tiny_darknet_voc(pretrained_base=False, pretrained=False,
     return get_yolov3(
         'tiny_darknet', stages, [512, 256], anchors, strides, classes, 'voc',
         pretrained=pretrained, norm_layer=norm_layer, norm_kwargs=norm_kwargs, **kwargs)
+
+
+def yolo3_resnet101_voc(pretrained_base=False, pretrained=False,
+                        norm_layer=BatchNorm, norm_kwargs=None, **kwargs):
+    """YOLO3 multi-scale with darknet53 base network on COCO dataset.
+    Parameters
+    ----------
+    pretrained_base : boolean
+        Whether fetch and load pretrained weights for base network.
+    pretrained : bool or str
+        Boolean value controls whether to load the default pretrained weights for model.
+        String value represents the hashtag for a certain version of pretrained weights.
+    norm_layer : object
+        Normalization layer used (default: :class:`mxnet.gluon.nn.BatchNorm`)
+        Can be :class:`mxnet.gluon.nn.BatchNorm` or :class:`mxnet.gluon.contrib.nn.SyncBatchNorm`.
+    norm_kwargs : dict
+        Additional `norm_layer` arguments, for example `num_devices=4`
+        for :class:`mxnet.gluon.contrib.nn.SyncBatchNorm`.
+    Returns
+    -------
+    mxnet.gluon.HybridBlock
+        Fully hybrid yolo3 network.
+    """
+    from ...data import COCODetection
+    pretrained_base = False if pretrained else pretrained_base
+    base_net = resnet101_v1(
+        pretrained=pretrained_base, norm_layer=norm_layer, norm_kwargs=norm_kwargs, **kwargs)
+    # print(base_net.features)
+    # print(len(base_net.features))
+    stages = [base_net.features[:6], base_net.features[6:7], base_net.features[7:8]]
+    # stages = [base_net.features[:7], base_net.features[7:8], base_net.features[8:9]]
+    anchors = [[10, 13, 16, 30, 33, 23], [30, 61, 62, 45, 59, 119], [116, 90, 156, 198, 373, 326]]
+    strides = [8, 16, 32]
+    classes = COCODetection.CLASSES
+    return get_yolov3(
+        'resnet101', stages, [512, 256, 128], anchors, strides, classes, 'voc',
+        pretrained=pretrained, norm_layer=norm_layer, norm_kwargs=norm_kwargs, **kwargs)
+
 
 def yolo3_darknet53_coco(pretrained_base=True, pretrained=False,
                          norm_layer=BatchNorm, norm_kwargs=None, **kwargs):

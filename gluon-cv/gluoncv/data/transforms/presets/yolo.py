@@ -144,6 +144,7 @@ class YOLO3DefaultTrainTransform(object):
         self._fake_x = mx.nd.zeros((1, 3, height, width))
         net = copy.deepcopy(net)
         net.collect_params().reset_ctx(None)
+        # print(self._fake_x.shape)
         with autograd.train_mode():
             _, self._anchors, self._offsets, self._feat_maps, _, _, _, _, _ = net(self._fake_x)
         from ....model_zoo.yolo.yolo_target import YOLOV3PrefetchTargetGenerator
